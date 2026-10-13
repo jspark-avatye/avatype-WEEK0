@@ -1,15 +1,11 @@
-// Normalized ERD. Required CHECK/partial-index/transaction constraints: erd.md.
+// Basic nine-table ERD including Refresh Token. Additional integrity rules: erd.md.
 Project english_conversation_assessment {
   database_type: 'PostgreSQL'
-  Note: 'No denormalization. Table-by-table review: erd_review.md.'
 }
 
-Enum assessment_criterion_code {
-  VOCABULARY
-  GRAMMAR
-  PRONUNCIATION
-  FLUENCY
-  RELEVANCE
+Enum account_state {
+  ACTIVE
+  DISABLED
 }
 
 Enum proficiency_band_code {
@@ -30,44 +26,22 @@ Enum proficiency_level_code {
   ADVANCED_HIGH
 }
 
-Enum account_state {
-  ACTIVE
-  DISABLED
+Enum evaluation_status {
+  READY
+  IN_PROGRESS
+  PAUSED
+  ENDING
+  ANALYSIS_PENDING
+  ANALYZING
+  COMPLETED
+  ANALYSIS_FAILED
 }
 
-Enum evaluation_timer_mode {
-  WALL_CLOCK
-  ACTIVE_TIME
-}
-
-Enum ai_operation {
-  QUESTION_GENERATION
-  SPEECH_RECOGNITION
-  QUESTION_SPEECH
-  TURN_ASSESSMENT
-  FINAL_ANALYSIS
-}
-
-Enum evaluation_end_reason {
-  SUFFICIENT_EVIDENCE
-  TIME_LIMIT
-  USER_REQUEST
-  RESUME_WINDOW_EXPIRED
-}
-
-Enum evaluation_pause_reason {
-  USER_PAUSE
-}
-
-Enum ai_attempt_outcome {
-  SUCCEEDED
+Enum answer_processing_status {
+  PENDING
+  PROCESSING
+  COMPLETED
   FAILED
-}
-
-Enum conversation_recommendation {
-  CONTINUE
-  END
-  INSUFFICIENT_DATA
 }
 
 Enum evaluation_verdict {
@@ -76,363 +50,127 @@ Enum evaluation_verdict {
   UNASSESSABLE
 }
 
+Enum assessment_criterion_code {
+  VOCABULARY
+  GRAMMAR
+  PRONUNCIATION
+  FLUENCY
+  RELEVANCE
+}
+
 Enum feedback_kind {
   IMPROVEMENT
   EXPRESSION_CORRECTION
 }
 
 Table user_account {
-  user_id uuid [not null, pk, note: '식별자이자 Access JWT의 sub']
-  login_id text [not null, unique, note: '정규화된 로그인 ID']
-  password_hash text [not null, note: '해시 알고리즘·파라미터를 포함한 비밀번호 해시']
-  account_status account_state [not null, note: 'ACTIVE 또는 DISABLED']
+  user_id uuid [not null, pk, note: '회원 ID']
+  login_id text [not null, unique, note: '로그인 ID']
+  password_hash text [not null, note: '비밀번호 해시']
+  account_status account_state [not null, note: '계정 상태']
+  current_level_code proficiency_level_code [null, note: '현재 평가 수준']
   created_at timestamptz [not null, note: '생성 시각']
   Note: '회원 계정'
 }
 
-Table evaluation_topic {
-  topic_id uuid [not null, pk, note: '식별자']
-  topic_code text [not null, unique, note: '업무 코드']
-  title text [not null, note: '주제명']
-  description text [not null, note: '설명']
-  is_active boolean [not null, note: '신규 평가 선택 가능 여부']
-  Note: '선택 가능한 평가 주제'
-}
-
-Table evaluation_policy {
-  policy_id uuid [not null, pk, note: '식별자']
-  version_no integer [not null, unique, note: '운영 정책 버전']
-  rubric_id uuid [not null, note: '적용 평가 기준']
-  max_duration_seconds integer [not null, note: '최대 평가 시간']
-  resume_window_seconds integer [not null, note: '세션 재개 허용 시간']
-  timer_mode evaluation_timer_mode [not null, note: 'WALL_CLOCK 또는 ACTIVE_TIME']
-  termination_rules text [not null, note: '근거 충족 등 자동 종료 규칙']
-  published_at timestamptz [not null, note: '배포 시각']
-  Note: '변경 불가능한 평가 운영 정책 버전'
-}
-
-Table policy_retry_rule {
-  policy_id uuid [not null, note: '운영 정책']
-  operation_code ai_operation [not null, note: 'QUESTION_GENERATION 또는 SPEECH_RECOGNITION 또는 QUESTION_SPEECH 또는 TURN_ASSESSMENT 또는 FINAL_ANALYSIS']
-  max_attempts integer [not null, note: '최초 시도를 포함한 최대 횟수']
-  timeout_seconds integer [not null, note: '시도 제한 시간']
-  retry_delay_seconds integer [not null, note: '실패 후 재시도 대기 시간']
-  indexes {
-    (policy_id, operation_code) [pk]
-  }
-  Note: '운영 정책별 AI 작업 종류의 재시도 한도'
-}
-
-Table rubric_version {
-  rubric_id uuid [not null, pk, note: '식별자']
-  version_no integer [not null, unique, note: '전체 기준의 버전']
-  decision_rules text [not null, note: '확정·잠정·평가 불가 및 최종 수준 판정 규칙']
-  published_at timestamptz [not null, note: '배포 시각']
-  Note: '변경 불가능한 버전별 평가 기준'
-}
-
-Table rubric_criterion {
-  rubric_id uuid [not null, note: '평가 기준']
-  criterion_code assessment_criterion_code [not null, note: '항목']
-  scoring_rules text [not null, note: '항목별 채점·근거 충족 규칙']
-  min_score numeric(8,3) [not null, note: '최저 점수']
-  max_score numeric(8,3) [not null, note: '최고 점수']
-  indexes {
-    (rubric_id, criterion_code) [pk]
-  }
-  Note: '기준 버전별 항목 정의 및 점수 범위'
-}
-
-Table rubric_level {
-  rubric_id uuid [not null, note: '평가 기준']
-  level_code proficiency_level_code [not null, note: '수준']
-  descriptor text [not null, note: '이 수준의 판정 기준']
-  indexes {
-    (rubric_id, level_code) [pk]
-  }
-  Note: '기준 버전별 수준 판정 설명'
+Table refresh_token {
+  token_id uuid [not null, pk, note: '토큰 ID']
+  user_id uuid [not null, note: '회원 ID']
+  token_hash text [not null, unique, note: '토큰 해시; 원문 저장 금지']
+  created_at timestamptz [not null, note: '최초 발급 시각']
+  expires_at timestamptz [not null, note: '만료 시각']
+  revoked_at timestamptz [null, note: '폐기 시각']
+  Note: '리프레시 토큰; 갱신 시 해시 교체, 최초 만료 시각 유지'
 }
 
 Table evaluation_session {
-  evaluation_id uuid [not null, pk, note: '식별자']
-  user_id uuid [not null, note: '소유자']
-  topic_id uuid [not null, note: '주제']
+  evaluation_id uuid [not null, pk, note: '평가 ID']
+  user_id uuid [not null, note: '회원 ID']
   starting_band_code proficiency_band_code [not null, note: '시작 수준']
-  policy_id uuid [not null, note: '생성 시 고정한 운영 정책']
+  status evaluation_status [not null, note: '평가 상태']
   created_at timestamptz [not null, note: '생성 시각']
   started_at timestamptz [null, note: '시작 시각']
-  ended_at timestamptz [null, note: '추가 답변 접수를 차단한 시각']
-  end_reason evaluation_end_reason [null, note: 'SUFFICIENT_EVIDENCE 또는 TIME_LIMIT 또는 USER_REQUEST 또는 RESUME_WINDOW_EXPIRED']
-  Note: '평가의 소유자·설정·시작·종료 사실'
-}
-
-Table evaluation_pause {
-  evaluation_id uuid [not null, note: '평가']
-  pause_no integer [not null, note: '구간 순번']
-  paused_at timestamptz [not null, note: '보류 시작']
-  resumed_at timestamptz [null, note: '재개 시각']
-  reason_code evaluation_pause_reason [not null, note: 'USER_PAUSE']
-  indexes {
-    (evaluation_id, pause_no) [pk]
-  }
-  Note: '재개와 시간 계산에 필요한 보류 구간'
-}
-
-Table audio_asset {
-  audio_id uuid [not null, pk, note: '식별자']
-  bucket text [not null, note: '버킷']
-  object_key text [not null, note: '불변 객체 키']
-  mime_type text [not null, note: '실제 MIME 형식']
-  byte_size bigint [not null, note: '파일 크기']
-  duration_ms bigint [not null, note: '음성 길이']
-  created_at timestamptz [not null, note: '저장 완료 시각']
-  indexes {
-    (bucket, object_key) [unique]
-  }
-  Note: 'MinIO 음성 객체의 위치와 실제 파일 메타데이터'
-}
-
-Table ai_model_version {
-  model_id uuid [not null, pk, note: '식별자']
-  provider text [not null, note: '공급자 식별값']
-  model_name text [not null, note: '공급자 안에서의 모델명']
-  version_tag text [not null, note: '고정 모델 또는 배포 버전']
-  indexes {
-    (provider, model_name, version_tag) [unique]
-  }
-  Note: '실제로 호출한 AI 모델 버전'
-}
-
-Table ai_job {
-  job_id uuid [not null, pk, note: '식별자']
-  created_at timestamptz [not null, note: '작업 생성 시각']
-  Note: '한 번의 논리적 AI 작업'
-}
-
-Table ai_attempt {
-  job_id uuid [not null, note: '작업']
-  attempt_no integer [not null, note: '최초 1부터 증가']
-  model_id uuid [not null, note: '실제 실행 모델']
-  requested_at timestamptz [not null, note: '실행 예약 시각']
-  not_before timestamptz [not null, note: '실행 가능 시각']
-  started_at timestamptz [null, note: '실행 시작']
-  completed_at timestamptz [null, note: '종료 시각']
-  outcome ai_attempt_outcome [null, note: 'SUCCEEDED 또는 FAILED']
-  error_code text [null, note: '실패 분류']
-  error_detail text [null, note: '해당 시도에서 관측한 오류 상세']
-  indexes {
-    (job_id, attempt_no) [pk]
-  }
-  Note: 'AI 작업의 개별 실행 및 재시도'
+  paused_at timestamptz [null, note: '최근 일시정지 시각']
+  ended_at timestamptz [null, note: '종료 시각']
+  Note: '평가 세션'
 }
 
 Table question {
-  job_id uuid [not null, pk, note: 'AI 작업이자 질문 슬롯 식별자']
-  evaluation_id uuid [not null, note: '평가']
+  question_id uuid [not null, pk, note: '질문 ID']
+  evaluation_id uuid [not null, note: '평가 ID']
   question_no integer [not null, note: '질문 순서']
-  accepted_attempt_no integer [null, note: '채택한 생성 시도']
-  content text [null, note: '확정 질문 원문']
-  difficulty_level_code proficiency_level_code [null, note: '질문 난이도']
-  intent text [null, note: '질문의 평가 의도']
+  content text [not null, note: '질문 내용']
+  difficulty_level_code proficiency_level_code [not null, note: '질문 난이도']
+  audio_id uuid [null, unique, note: '질문 음성 ID']
+  created_at timestamptz [not null, note: '생성 시각']
   indexes {
     (evaluation_id, question_no) [unique]
   }
-  Note: '질문 생성 작업의 입력과 채택한 질문'
-}
-
-Table question_criterion {
-  question_id uuid [not null, note: '질문']
-  criterion_code assessment_criterion_code [not null, note: '목표 평가 항목']
-  indexes {
-    (question_id, criterion_code) [pk]
-  }
-  Note: '질문이 확인하려는 평가 항목'
-}
-
-Table question_speech {
-  job_id uuid [not null, pk, note: 'AI 작업']
-  question_id uuid [not null, unique, note: '음성화할 질문']
-  accepted_attempt_no integer [null, note: '채택한 TTS 시도']
-  audio_id uuid [null, unique, note: '생성된 음성']
-  Note: '질문 TTS 작업의 입력과 채택한 음성'
+  Note: '질문'
 }
 
 Table answer {
-  answer_id uuid [not null, pk, note: '식별자']
-  question_id uuid [not null, unique, note: '답변 대상 질문']
-  audio_id uuid [not null, unique, note: '제출 음성']
-  stt_job_id uuid [not null, unique, note: '이 답변의 STT 작업']
-  accepted_stt_attempt_no integer [null, note: '채택한 전사 시도']
-  accepted_at timestamptz [not null, note: '서버 접수 확정 시각']
-  Note: '질문에 제출된 답변과 STT 작업 연결'
+  answer_id uuid [not null, pk, note: '답변 ID']
+  question_id uuid [not null, unique, note: '질문 ID']
+  audio_id uuid [not null, unique, note: '답변 음성 ID']
+  transcript text [null, note: '전체 전사문']
+  processing_status answer_processing_status [not null, note: '처리 상태']
+  accepted_at timestamptz [not null, note: '답변 접수 시각']
+  Note: '답변'
 }
 
-Table transcript_segment {
-  job_id uuid [not null, note: 'STT 작업']
-  attempt_no integer [not null, note: '전사를 생성한 시도']
-  segment_no integer [not null, note: '구간 순번']
-  start_ms bigint [not null, note: '답변 음성 내 시작']
-  end_ms bigint [not null, note: '답변 음성 내 종료']
-  content text [not null, note: '구간 전사문']
-  confidence numeric(6,5) [null, note: '공급자가 반환한 신뢰도']
-  indexes {
-    (job_id, attempt_no, segment_no) [pk]
-  }
-  Note: 'STT 시도별 구간 전사 결과'
+Table audio_asset {
+  audio_id uuid [not null, pk, note: '음성 ID']
+  object_key text [not null, unique, note: '프리픽스를 포함한 전체 객체 키']
+  mime_type text [not null, note: 'MIME 타입']
+  byte_size bigint [not null, note: '파일 크기(바이트)']
+  duration_ms bigint [not null, note: '음성 길이(밀리초)']
+  created_at timestamptz [not null, note: '저장 시각']
+  Note: '음성 자원; 단일 고정 버킷은 서버 설정에서 관리'
 }
 
-Table turn_assessment {
-  job_id uuid [not null, pk, note: 'AI 작업']
-  answer_id uuid [not null, unique, note: '분석할 답변']
-  accepted_attempt_no integer [null, note: '채택한 분석 시도']
-  recommendation conversation_recommendation [null, note: 'CONTINUE 또는 END 또는 INSUFFICIENT_DATA']
-  reason text [null, note: 'AI 판단의 이유']
-  Note: '대화 중 답변 분석의 입력과 채택 결과'
-}
-
-Table turn_observation {
-  observation_id uuid [not null, pk, note: '식별자']
-  assessment_job_id uuid [not null, note: '대화 중 분석 결과']
-  criterion_code assessment_criterion_code [not null, note: '평가 항목']
-  finding text [not null, note: '항목별 관측 내용']
-  indexes {
-    (assessment_job_id, criterion_code) [unique]
-  }
-  Note: '답변 분석에서 항목별로 확인한 근거 요약'
-}
-
-Table audio_span {
-  span_id uuid [not null, pk, note: '식별자']
-  answer_id uuid [not null, note: '원본 답변']
-  start_ms bigint [not null, note: '시작 위치']
-  end_ms bigint [not null, note: '종료 위치']
-  indexes {
-    (answer_id, start_ms, end_ms) [unique]
-  }
-  Note: '근거가 가리키는 사용자 발화 구간'
-}
-
-Table turn_observation_evidence {
-  observation_id uuid [not null, note: '관측']
-  span_id uuid [not null, note: '발화 구간']
-  explanation text [not null, note: '이 구간이 해당 관측을 뒷받침하는 이유']
-  indexes {
-    (observation_id, span_id) [pk]
-  }
-  Note: '대화 중 관측과 발화 근거의 연결'
-}
-
-Table evaluation_analysis {
-  job_id uuid [not null, pk, note: 'AI 작업']
-  evaluation_id uuid [not null, unique, note: '분석할 평가']
-  accepted_attempt_no integer [null, note: '채택한 분석 시도']
-  verdict evaluation_verdict [null, note: 'CONFIRMED 또는 PROVISIONAL 또는 UNASSESSABLE']
-  final_level_code proficiency_level_code [null, note: 'AI가 판정한 최종 수준']
-  Note: '최종 분석 작업의 입력과 채택한 보고서 판단'
+Table evaluation_report {
+  report_id uuid [not null, pk, note: '보고서 ID']
+  evaluation_id uuid [not null, unique, note: '평가 ID']
+  final_level_code proficiency_level_code [null, note: '최종 평가 수준']
+  verdict evaluation_verdict [not null, note: '평가 판정']
+  summary text [not null, note: '종합 평가 설명']
+  created_at timestamptz [not null, note: '보고서 생성 시각']
+  Note: '평가 보고서'
 }
 
 Table criterion_result {
-  result_id uuid [not null, pk, note: '식별자']
-  analysis_job_id uuid [not null, note: '최종 분석']
-  criterion_code assessment_criterion_code [not null, note: '항목']
-  score numeric(8,3) [null, note: '항목별 점수']
-  insufficient_reason text [null, note: '점수를 낼 수 없는 이유']
-  rationale text [not null, note: '항목 판단 설명']
+  result_id uuid [not null, pk, note: '항목 결과 ID']
+  report_id uuid [not null, note: '보고서 ID']
+  criterion_code assessment_criterion_code [not null, note: '평가 항목 코드']
+  score numeric(8,3) [null, note: '항목 점수']
+  insufficient_reason text [null, note: '평가 데이터 부족 사유']
+  rationale text [not null, note: '항목 판단 이유']
   indexes {
-    (analysis_job_id, criterion_code) [unique]
+    (report_id, criterion_code) [unique]
   }
-  Note: '보고서의 항목별 최종 판단'
-}
-
-Table criterion_evidence {
-  result_id uuid [not null, note: '항목별 결과']
-  span_id uuid [not null, note: '근거 발화 구간']
-  explanation text [not null, note: '해당 판단을 뒷받침하는 이유']
-  indexes {
-    (result_id, span_id) [pk]
-  }
-  Note: '항목별 최종 판단과 실제 발화 구간의 연결'
+  Note: '평가 항목 결과'
 }
 
 Table criterion_feedback {
-  feedback_id uuid [not null, pk, note: '식별자']
-  result_id uuid [not null, note: '항목별 결과']
-  feedback_no integer [not null, note: '해당 항목 내 순서']
-  feedback_kind feedback_kind [not null, note: 'IMPROVEMENT 또는 EXPRESSION_CORRECTION']
+  feedback_id uuid [not null, pk, note: '피드백 ID']
+  result_id uuid [not null, note: '항목 결과 ID']
+  feedback_no integer [not null, note: '피드백 순서']
+  feedback_kind feedback_kind [not null, note: '피드백 종류']
   suggestion text [not null, note: '개선 제안 또는 수정 표현']
   explanation text [not null, note: '제안 이유']
   indexes {
     (result_id, feedback_no) [unique]
   }
-  Note: '항목별 개선 제안과 표현 수정'
+  Note: '평가 피드백'
 }
 
-Table feedback_evidence {
-  feedback_id uuid [not null, note: '피드백']
-  span_id uuid [not null, note: '발화 구간']
-  indexes {
-    (feedback_id, span_id) [pk]
-  }
-  Note: '피드백이 가리키는 실제 발화 구간'
-}
-
-Table report_limitation {
-  limitation_id uuid [not null, pk, note: '식별자']
-  analysis_job_id uuid [not null, note: '최종 분석']
-  reason_code text [not null, note: '제약 종류의 고정 코드']
-  detail text [not null, note: '이 평가에서 발생한 구체적인 제약']
-  Note: '평가에 영향을 준 제약 또는 실패'
-}
-
-Table limitation_answer {
-  limitation_id uuid [not null, note: '평가 제약']
-  answer_id uuid [not null, note: '영향을 받은 답변']
-  indexes {
-    (limitation_id, answer_id) [pk]
-  }
-  Note: '제약이 적용되는 답변 집합'
-}
-
-Ref: rubric_criterion.rubric_id > rubric_version.rubric_id [delete: restrict, update: restrict]
-Ref: rubric_level.rubric_id > rubric_version.rubric_id [delete: restrict, update: restrict]
-Ref: evaluation_policy.rubric_id > rubric_version.rubric_id [delete: restrict, update: restrict]
-Ref: policy_retry_rule.policy_id > evaluation_policy.policy_id [delete: restrict, update: restrict]
+Ref: refresh_token.user_id > user_account.user_id [delete: restrict, update: restrict]
 Ref: evaluation_session.user_id > user_account.user_id [delete: restrict, update: restrict]
-Ref: evaluation_session.topic_id > evaluation_topic.topic_id [delete: restrict, update: restrict]
-Ref: evaluation_session.policy_id > evaluation_policy.policy_id [delete: restrict, update: restrict]
-Ref: evaluation_pause.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
-Ref: ai_attempt.job_id > ai_job.job_id [delete: restrict, update: restrict]
-Ref: ai_attempt.model_id > ai_model_version.model_id [delete: restrict, update: restrict]
-Ref: question.job_id > ai_job.job_id [delete: restrict, update: restrict]
-Ref: question_speech.job_id > ai_job.job_id [delete: restrict, update: restrict]
-Ref: turn_assessment.job_id > ai_job.job_id [delete: restrict, update: restrict]
 Ref: question.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
-Ref: question.(job_id, accepted_attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: question_criterion.question_id > question.job_id [delete: restrict, update: restrict]
-Ref: question_speech.question_id > question.job_id [delete: restrict, update: restrict]
-Ref: question_speech.(job_id, accepted_attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: question_speech.audio_id > audio_asset.audio_id [delete: restrict, update: restrict]
-Ref: answer.question_id > question.job_id [delete: restrict, update: restrict]
+Ref: question.audio_id > audio_asset.audio_id [delete: restrict, update: restrict]
+Ref: answer.question_id > question.question_id [delete: restrict, update: restrict]
 Ref: answer.audio_id > audio_asset.audio_id [delete: restrict, update: restrict]
-Ref: answer.stt_job_id > ai_job.job_id [delete: restrict, update: restrict]
-Ref: turn_assessment.answer_id > answer.answer_id [delete: restrict, update: restrict]
-Ref: transcript_segment.job_id > answer.stt_job_id [delete: restrict, update: restrict]
-Ref: transcript_segment.(job_id, attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: answer.(stt_job_id, accepted_stt_attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: turn_assessment.(job_id, accepted_attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: turn_observation.assessment_job_id > turn_assessment.job_id [delete: restrict, update: restrict]
-Ref: audio_span.answer_id > answer.answer_id [delete: restrict, update: restrict]
-Ref: turn_observation_evidence.observation_id > turn_observation.observation_id [delete: restrict, update: restrict]
-Ref: turn_observation_evidence.span_id > audio_span.span_id [delete: restrict, update: restrict]
-Ref: evaluation_analysis.job_id > ai_job.job_id [delete: restrict, update: restrict]
-Ref: evaluation_analysis.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
-Ref: evaluation_analysis.(job_id, accepted_attempt_no) > ai_attempt.(job_id, attempt_no) [delete: restrict, update: restrict]
-Ref: criterion_result.analysis_job_id > evaluation_analysis.job_id [delete: restrict, update: restrict]
-Ref: criterion_evidence.result_id > criterion_result.result_id [delete: restrict, update: restrict]
-Ref: criterion_evidence.span_id > audio_span.span_id [delete: restrict, update: restrict]
+Ref: evaluation_report.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
+Ref: criterion_result.report_id > evaluation_report.report_id [delete: restrict, update: restrict]
 Ref: criterion_feedback.result_id > criterion_result.result_id [delete: restrict, update: restrict]
-Ref: feedback_evidence.feedback_id > criterion_feedback.feedback_id [delete: restrict, update: restrict]
-Ref: feedback_evidence.span_id > audio_span.span_id [delete: restrict, update: restrict]
-Ref: report_limitation.analysis_job_id > evaluation_analysis.job_id [delete: restrict, update: restrict]
-Ref: limitation_answer.limitation_id > report_limitation.limitation_id [delete: restrict, update: restrict]
-Ref: limitation_answer.answer_id > answer.answer_id [delete: restrict, update: restrict]

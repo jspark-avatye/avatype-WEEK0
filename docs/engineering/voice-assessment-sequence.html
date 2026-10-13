@@ -33,8 +33,8 @@
 <body>
   <main class="shell">
     <div class="eyebrow">ROOT · VOICE ASSESSMENT</div>
-    <h1>사용자 발화에서 AI 음성 응답까지</h1>
-    <p class="subtitle">평가 시작, 사용자 답변 접수와 분석, 후속 질문 생성 및 TTS 재생의 요청·데이터 흐름</p>
+    <h1>로그인부터 영어 회화 평가 보고서까지</h1>
+    <p class="subtitle">현재 9개 테이블 ERD 기준 · 인증, 질문 음성, 답변 전사, 후속 질문, 최종 보고서의 흐름</p>
     <div class="toolbar" role="tablist" aria-label="다이어그램 보기">
       <button id="diagramTab" class="active" type="button" role="tab" aria-selected="true">시퀀스 다이어그램</button>
       <button id="sourceTab" type="button" role="tab" aria-selected="false">Mermaid 원본</button>
@@ -47,67 +47,109 @@ sequenceDiagram
     participant Client as Client · React
     participant WAS as WAS · NestJS
     participant DB as DB · PostgreSQL
+    participant MinIO as MinIO · 단일 음성 버킷
     participant OpenAI as OpenAI API
 
     rect rgb(238, 246, 240)
-    Note over Browser,OpenAI: 1. 평가 시작 — 첫 질문 생성 및 TTS
-    Browser->>Client: 평가 시작 클릭
-    Client->>WAS: EVAL-03 평가 시작 (tRPC)
-    WAS->>DB: 세션 시작 기록 · 질문 생성 작업 생성
-    WAS->>OpenAI: 질문 생성 요청 (주제 · 시작 수준 · 정책)
-    OpenAI-->>WAS: 질문 텍스트 · 난이도 · 의도
-    WAS->>DB: question · ai_attempt 저장
-    WAS->>OpenAI: TTS 요청 (질문 텍스트 · 음성 설정)
-    OpenAI-->>WAS: 합성 음성 바이트
-    WAS->>DB: audio_asset 메타데이터 · question_speech 저장
-    WAS-->>Client: 질문 텍스트 · 음성 재생 참조
-    Client->>Browser: 질문 재생
-    Browser-->>Client: 질문 음성 재생 완료
+    Note over Browser,OpenAI: 1. 로그인 및 토큰 갱신
+    Browser->>Client: ID와 비밀번호 입력
+    Client->>WAS: auth.login (tRPC)
+    WAS->>DB: user_account 조회 · 비밀번호와 계정 상태 검증
+    WAS->>DB: refresh_token 해시 · 최초 만료 시각 저장
+    WAS-->>Client: Access JWT · Refresh Token HttpOnly 쿠키
+    opt Access JWT 만료 후 갱신
+        Client->>WAS: auth.refresh (Refresh Token 쿠키)
+        WAS->>DB: 토큰 해시 · 만료 · 폐기 · 회원 상태 확인
+        WAS->>DB: 기존 해시 조건으로 token_hash 원자적 교체
+        WAS-->>Client: 새 Access JWT · 새 Refresh Token 쿠키
+    end
     end
 
     rect rgb(244, 242, 250)
-    Note over Browser,OpenAI: 2. 사용자 답변 — 음성 업로드 및 STT
-    Browser->>Client: 답변 녹음 시작 · 발화 · 제출
-    Client->>Browser: 마이크 접근 · MediaRecorder 녹음
-    Browser-->>Client: 답변 음성 Blob
-    Client->>WAS: EVAL-04 답변 제출 (evaluationId · questionId · requestId · 음성)
-    WAS->>DB: answer · audio_asset 메타데이터 · speech_recognition 작업 저장
-    WAS->>OpenAI: STT 요청 (원본 음성 바이트 · 모델 설정)
-    OpenAI-->>WAS: 전사 구간 · 시간 정보 · 신뢰도
-    WAS->>DB: transcript_segment 저장 · answer.accepted_stt_attempt_no 지정
+    Note over Browser,OpenAI: 2. 평가 시작 — AI 첫 질문과 질문 음성
+    Browser->>Client: 평가 시작 클릭
+    Client->>WAS: EVAL-03 평가 시작 (tRPC)
+    WAS->>DB: evaluation_session.started_at · status 갱신
+    WAS->>OpenAI: 첫 질문 생성 요청 (시작 수준 · 대화 맥락)
+    OpenAI-->>WAS: 질문 텍스트 · 난이도
+    WAS->>DB: question 저장 (evaluation_id · question_no · content)
+    WAS->>OpenAI: 질문 텍스트 TTS 요청
+    OpenAI-->>WAS: 합성 음성 바이트
+    WAS->>MinIO: 단일 버킷의 questions/ 프리픽스에 음성 저장
+    MinIO-->>WAS: object_key
+    WAS->>DB: audio_asset.object_key 저장 · question.audio_id 연결
+    WAS-->>Client: 질문 텍스트 · 질문 음성 접근 URL
+    Client->>Browser: 질문 재생
     end
 
     rect rgb(250, 246, 235)
-    Note over Browser,OpenAI: 3. 답변 분석 — 다음 질문 및 TTS
-    WAS->>OpenAI: 대화 분석 요청 (질문 · 전사 · 음성 · 평가 맥락)
-    OpenAI-->>WAS: 관측 근거 · CONTINUE/END 판단
-    WAS->>DB: turn_assessment · 관측 결과 저장
+    Note over Browser,OpenAI: 3. 사용자 답변 — 음성 저장과 전체 전사
+    Browser->>Client: 답변 녹음 · 제출
+    Client->>Browser: 마이크 접근 · MediaRecorder 녹음
+    Browser-->>Client: 답변 음성 Blob
+    Client->>WAS: EVAL-04 답변 제출 (평가 ID · 질문 ID · 음성)
+    WAS->>MinIO: 단일 버킷의 answers/ 프리픽스에 음성 저장
+    MinIO-->>WAS: object_key
+    WAS->>DB: audio_asset · answer 저장 (processing_status=PENDING)
+    WAS->>DB: answer.processing_status=PROCESSING
+    WAS->>OpenAI: STT 요청 (원본 음성)
+    alt 전사 성공
+        OpenAI-->>WAS: 전체 전사문
+        WAS->>DB: answer.transcript 저장 · processing_status=COMPLETED
+    else 전사 실패
+        OpenAI-->>WAS: 처리 오류
+        WAS->>DB: answer.processing_status=FAILED
+    end
+    end
+
+    rect rgb(238, 246, 240)
+    Note over Browser,OpenAI: 4. 후속 질문 또는 평가 종료
+    WAS->>OpenAI: 다음 진행 판단 (질문 · 답변 음성 · 전사문 · 대화 맥락)
+    OpenAI-->>WAS: 계속 또는 종료 제안
     alt 대화 계속
-        WAS->>OpenAI: 후속 질문 생성 (주제 · 대화 맥락 · 관측 결과)
-        OpenAI-->>WAS: 다음 질문 텍스트 · 난이도 · 의도
-        WAS->>DB: question · ai_attempt 저장
-        WAS->>OpenAI: TTS 요청 (질문 텍스트 · 음성 설정)
+        WAS->>OpenAI: 후속 질문 생성 (대화 맥락)
+        OpenAI-->>WAS: 다음 질문 텍스트 · 난이도
+        WAS->>DB: 새 question 저장 (다음 question_no)
+        WAS->>OpenAI: 다음 질문 TTS 요청
         OpenAI-->>WAS: 합성 음성 바이트
-        WAS->>DB: audio_asset 메타데이터 · question_speech 저장
-        WAS-->>Client: 다음 질문 · 음성 재생 참조
+        WAS->>MinIO: questions/ 프리픽스에 음성 저장
+        MinIO-->>WAS: object_key
+        WAS->>DB: audio_asset 저장 · question.audio_id 연결
+        WAS-->>Client: 다음 질문 · 음성 접근 URL
         Client->>Browser: 다음 질문 음성 재생
     else 평가 종료
-        WAS->>DB: 평가 종료 확정 · 최종 분석 작업 생성
+        WAS->>DB: evaluation_session.ended_at · status 갱신
         WAS-->>Client: 답변 접수 · 분석 대기 상태
     end
     end
 
-    Note over WAS,DB: 재시도는 같은 논리 작업의 새 ai_attempt로 기록한다.
-    Note over DB,OpenAI: DB에는 음성 파일 자체가 아니라 bucket·object_key 등 audio_asset 메타데이터가 저장된다.
+    rect rgb(244, 242, 250)
+    Note over Browser,OpenAI: 5. 최종 보고서 저장 및 조회
+    WAS->>OpenAI: 전체 질문 · 답변 · 음성으로 최종 분석 요청
+    OpenAI-->>WAS: 최종 수준 · 판정 · 5개 항목 결과 · 피드백
+    Note over WAS,DB: 보고서 · 5개 항목 결과 · 피드백 · 상태 변경은 한 트랜잭션
+    WAS->>DB: evaluation_report · criterion_result 5행 · criterion_feedback 저장
+    WAS->>DB: evaluation_session.status=COMPLETED
+    opt 판정이 CONFIRMED이며 최신 확정 평가인 경우
+        WAS->>DB: user_account.current_level_code 갱신
+    end
+    Client->>WAS: REPORT-04 보고서 조회
+    WAS->>DB: 보고서 · 항목 결과 · 피드백 조회
+    WAS-->>Client: 최종 수준 · 항목별 결과 · 피드백
+    Client->>Browser: 보고서 표시
+    end
+
+    Note over DB,MinIO: DB는 object_key만 저장 · 버킷 이름은 서버 설정에서 관리
+    Note over WAS,DB: 질문 음성은 question.audio_id · 전체 전사는 answer.transcript
       </div>
       <pre id="source" class="source"></pre>
     </section>
     <section class="note-grid" aria-label="다이어그램 읽는 법">
-      <article class="note"><strong>클라이언트에서 WAS로</strong><p>평가·질문 식별자와 사용자가 녹음한 음성 데이터가 답변 제출에 포함됩니다. 사용자 ID는 인증 정보에서 WAS가 확인합니다.</p></article>
-      <article class="note"><strong>WAS에서 OpenAI API로</strong><p>STT에는 원본 음성, 대화 분석에는 질문·전사·필요한 음성 맥락, TTS에는 확정된 질문 텍스트와 음성 설정이 전달됩니다.</p></article>
-      <article class="note"><strong>DB 저장 범위</strong><p>DB에는 답변·작업·전사·질문과 음성 객체 메타데이터를 저장합니다. 음성 바이너리 저장소(MinIO)는 요청된 노드 목록에 없어 다이어그램에서 생략했습니다.</p></article>
+      <article class="note"><strong>인증</strong><p>Access JWT는 DB에 저장하지 않습니다. Refresh Token은 해시와 만료·폐기 정보만 저장하고 쿠키로 전달합니다.</p></article>
+      <article class="note"><strong>질문과 답변</strong><p>AI 질문은 question, 질문당 최대 하나의 사용자 답변은 answer에 저장합니다. 답변의 processing_status는 전사 처리 상태입니다.</p></article>
+      <article class="note"><strong>음성 및 결과</strong><p>MinIO의 단일 버킷에 음성을 저장합니다. DB에는 프리픽스가 포함된 object_key와 최종 보고서·항목 결과·피드백을 저장합니다.</p></article>
     </section>
-    <p class="footer">요청에서 지정한 Browser · Client · WAS · DB · OpenAI API 다섯 경계만 표시했습니다. 음성 전송의 구체적 HTTP 방식은 구현 시 확정해야 합니다.</p>
+    <p class="footer">현재 기본 ERD의 9개 테이블을 기준으로 한 흐름입니다. AI 처리 중간 결과는 별도 테이블에 저장하지 않습니다. 음성 전송의 구체적 HTTP 방식은 구현 시 확정합니다.</p>
   </main>
   <script>
     const diagram = document.getElementById('diagram');
