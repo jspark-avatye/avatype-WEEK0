@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>음성 평가 시퀀스 | Root</title>
+  <style>
+    :root { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif; color: #17241f; background: #f4f6f3; font-synthesis: none; text-rendering: optimizeLegibility; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .shell { max-width: 1500px; margin: 0 auto; padding: 42px 52px 56px; }
+    .eyebrow { display: flex; align-items: center; gap: 9px; color: #507461; font-size: 12px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 22px; height: 2px; background: #73a184; }
+    h1 { margin: 15px 0 9px; font-size: clamp(30px, 4vw, 46px); line-height: 1.2; letter-spacing: -.045em; }
+    .subtitle { margin: 0; color: #66736c; font-size: 15px; line-height: 1.8; }
+    .toolbar { display: flex; gap: 9px; margin: 26px 0 14px; }
+    button { border: 1px solid #d9e0d9; border-radius: 8px; padding: 9px 14px; background: white; color: #53645a; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+    button.active { background: #203e32; color: white; border-color: #203e32; }
+    .diagram-card { overflow: auto; padding: 26px 22px 30px; border: 1px solid #e0e6df; border-radius: 15px; background: #fff; box-shadow: 0 12px 40px #243b2c0b; }
+    .mermaid { min-width: 1050px; display: flex; justify-content: center; }
+    .mermaid svg { max-width: none; height: auto; }
+    .source { display: none; min-width: 760px; margin: 0; padding: 20px; border-radius: 10px; background: #182820; color: #dcebe0; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; overflow: auto; }
+    .note-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+    .note { min-height: 100px; padding: 17px 18px; border: 1px solid #e0e6df; border-radius: 12px; background: #fff; }
+    .note strong { display: block; margin-bottom: 7px; color: #345846; font-size: 13px; }
+    .note p { margin: 0; color: #66736c; font-size: 12px; line-height: 1.7; }
+    .footer { margin-top: 18px; color: #87928b; font-size: 11px; }
+    @media(max-width: 760px) { .shell { padding: 28px 16px 36px; }.note-grid { grid-template-columns: 1fr; }.diagram-card { padding: 18px 10px; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <div class="eyebrow">ROOT · VOICE ASSESSMENT</div>
+    <h1>사용자 발화에서 AI 음성 응답까지</h1>
+    <p class="subtitle">평가 시작, 사용자 답변 접수와 분석, 후속 질문 생성 및 TTS 재생의 요청·데이터 흐름</p>
+    <div class="toolbar" role="tablist" aria-label="다이어그램 보기">
+      <button id="diagramTab" class="active" type="button" role="tab" aria-selected="true">시퀀스 다이어그램</button>
+      <button id="sourceTab" type="button" role="tab" aria-selected="false">Mermaid 원본</button>
+    </div>
+    <section class="diagram-card" aria-label="음성 평가 시퀀스">
+      <div id="diagram" class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Browser
+    participant Client as Client · React
+    participant WAS as WAS · NestJS
+    participant DB as DB · PostgreSQL
+    participant OpenAI as OpenAI API
+
+    rect rgb(238, 246, 240)
+    Note over Browser,OpenAI: 1. 평가 시작 — 첫 질문 생성 및 TTS
+    Browser->>Client: 평가 시작 클릭
+    Client->>WAS: EVAL-03 평가 시작 (tRPC)
+    WAS->>DB: 세션 시작 기록 · 질문 생성 작업 생성
+    WAS->>OpenAI: 질문 생성 요청 (주제 · 시작 수준 · 정책)
+    OpenAI-->>WAS: 질문 텍스트 · 난이도 · 의도
+    WAS->>DB: question · ai_attempt 저장
+    WAS->>OpenAI: TTS 요청 (질문 텍스트 · 음성 설정)
+    OpenAI-->>WAS: 합성 음성 바이트
+    WAS->>DB: audio_asset 메타데이터 · question_speech 저장
+    WAS-->>Client: 질문 텍스트 · 음성 재생 참조
+    Client->>Browser: 질문 재생
+    Browser-->>Client: 질문 음성 재생 완료
+    end
+
+    rect rgb(244, 242, 250)
+    Note over Browser,OpenAI: 2. 사용자 답변 — 음성 업로드 및 STT
+    Browser->>Client: 답변 녹음 시작 · 발화 · 제출
+    Client->>Browser: 마이크 접근 · MediaRecorder 녹음
+    Browser-->>Client: 답변 음성 Blob
+    Client->>WAS: EVAL-04 답변 제출 (evaluationId · questionId · requestId · 음성)
+    WAS->>DB: answer · audio_asset 메타데이터 · speech_recognition 작업 저장
+    WAS->>OpenAI: STT 요청 (원본 음성 바이트 · 모델 설정)
+    OpenAI-->>WAS: 전사 구간 · 시간 정보 · 신뢰도
+    WAS->>DB: transcript_segment 저장 · answer.accepted_stt_attempt_no 지정
+    end
+
+    rect rgb(250, 246, 235)
+    Note over Browser,OpenAI: 3. 답변 분석 — 다음 질문 및 TTS
+    WAS->>OpenAI: 대화 분석 요청 (질문 · 전사 · 음성 · 평가 맥락)
+    OpenAI-->>WAS: 관측 근거 · CONTINUE/END 판단
+    WAS->>DB: turn_assessment · 관측 결과 저장
+    alt 대화 계속
+        WAS->>OpenAI: 후속 질문 생성 (주제 · 대화 맥락 · 관측 결과)
+        OpenAI-->>WAS: 다음 질문 텍스트 · 난이도 · 의도
+        WAS->>DB: question · ai_attempt 저장
+        WAS->>OpenAI: TTS 요청 (질문 텍스트 · 음성 설정)
+        OpenAI-->>WAS: 합성 음성 바이트
+        WAS->>DB: audio_asset 메타데이터 · question_speech 저장
+        WAS-->>Client: 다음 질문 · 음성 재생 참조
+        Client->>Browser: 다음 질문 음성 재생
+    else 평가 종료
+        WAS->>DB: 평가 종료 확정 · 최종 분석 작업 생성
+        WAS-->>Client: 답변 접수 · 분석 대기 상태
+    end
+    end
+
+    Note over WAS,DB: 재시도는 같은 논리 작업의 새 ai_attempt로 기록한다.
+    Note over DB,OpenAI: DB에는 음성 파일 자체가 아니라 bucket·object_key 등 audio_asset 메타데이터가 저장된다.
+      </div>
+      <pre id="source" class="source"></pre>
+    </section>
+    <section class="note-grid" aria-label="다이어그램 읽는 법">
+      <article class="note"><strong>클라이언트에서 WAS로</strong><p>평가·질문 식별자와 사용자가 녹음한 음성 데이터가 답변 제출에 포함됩니다. 사용자 ID는 인증 정보에서 WAS가 확인합니다.</p></article>
+      <article class="note"><strong>WAS에서 OpenAI API로</strong><p>STT에는 원본 음성, 대화 분석에는 질문·전사·필요한 음성 맥락, TTS에는 확정된 질문 텍스트와 음성 설정이 전달됩니다.</p></article>
+      <article class="note"><strong>DB 저장 범위</strong><p>DB에는 답변·작업·전사·질문과 음성 객체 메타데이터를 저장합니다. 음성 바이너리 저장소(MinIO)는 요청된 노드 목록에 없어 다이어그램에서 생략했습니다.</p></article>
+    </section>
+    <p class="footer">요청에서 지정한 Browser · Client · WAS · DB · OpenAI API 다섯 경계만 표시했습니다. 음성 전송의 구체적 HTTP 방식은 구현 시 확정해야 합니다.</p>
+  </main>
+  <script>
+    const diagram = document.getElementById('diagram');
+    const source = document.getElementById('source');
+    source.textContent = diagram.textContent.trim();
+    document.getElementById('diagramTab').addEventListener('click', () => {
+      diagram.style.display = 'flex'; source.style.display = 'none';
+      document.getElementById('diagramTab').classList.add('active');
+      document.getElementById('sourceTab').classList.remove('active');
+      document.getElementById('diagramTab').setAttribute('aria-selected', 'true');
+      document.getElementById('sourceTab').setAttribute('aria-selected', 'false');
+    });
+    document.getElementById('sourceTab').addEventListener('click', () => {
+      diagram.style.display = 'none'; source.style.display = 'block';
+      document.getElementById('sourceTab').classList.add('active');
+      document.getElementById('diagramTab').classList.remove('active');
+      document.getElementById('sourceTab').setAttribute('aria-selected', 'true');
+      document.getElementById('diagramTab').setAttribute('aria-selected', 'false');
+    });
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'strict', themeVariables: {
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+        primaryColor: '#edf5ef', primaryTextColor: '#20392e', primaryBorderColor: '#8aab93',
+        lineColor: '#61776a', secondaryColor: '#f1eff8', tertiaryColor: '#faf5e9',
+        actorBkg: '#244637', actorBorder: '#244637', actorTextColor: '#ffffff', actorLineColor: '#afbab1',
+        signalColor: '#4a6656', signalTextColor: '#27382e', labelBoxBkgColor: '#f5f7f4', labelBoxBorderColor: '#d9e2da',
+        noteBkgColor: '#fff9e9', noteBorderColor: '#e7d9a9', noteTextColor: '#5d563c', activationBkgColor: '#dfece2', activationBorderColor: '#7e9c85'
+      }});
+    } else {
+      document.getElementById('diagram').innerHTML = '<p style="padding:32px;color:#9a4b38">Mermaid를 불러오지 못했습니다. 상단의 Mermaid 원본 탭에서 다이어그램 코드를 확인할 수 있습니다.</p>';
+    }
+  </script>
+</body>
+</html>

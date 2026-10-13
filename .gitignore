@@ -1,0 +1,13 @@
+node_modules
+.pnpm-store
+.turbo
+**/dist
+**/build
+**/coverage
+**/.vite
+**/generated
+.env
+.env.*
+!.env.example
+.DS_Store
+.corepack-cache

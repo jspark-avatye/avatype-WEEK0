@@ -1,0 +1,23 @@
+{
+  "name": "@root/trpc-contract",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.build.json",
+    "lint": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@trpc/server": "11.5.1"
+  },
+  "devDependencies": {
+    "typescript": "workspace:*"
+  }
+}
