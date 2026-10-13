@@ -4,7 +4,7 @@
     "module": "commonjs", "moduleResolution": "node", "target": "ES2022", "declaration": true,
     "removeComments": true, "emitDecoratorMetadata": true, "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true, "sourceMap": true, "outDir": "./dist", "baseUrl": ".", "incremental": true,
-    "skipLibCheck": true, "strict": true, "strictPropertyInitialization": false, "noImplicitAny": false
+    "skipLibCheck": true, "strict": true, "strictPropertyInitialization": false, "noImplicitAny": true
   },
   "include": ["src/**/*.ts"]
 }

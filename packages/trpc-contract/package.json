@@ -2,7 +2,9 @@
   "name": "@root/trpc-contract",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -11,13 +13,13 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.build.json",
-    "lint": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings=0",
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@trpc/server": "11.5.1"
   },
   "devDependencies": {
-    "typescript": "workspace:*"
+    "typescript": "5.9.2"
   }
 }

@@ -1,0 +1,14 @@
+.button {
+  background: #203d32;
+  color: white;
+  border: 0;
+  border-radius: 7px;
+  padding: 17px 22px;
+  font: inherit;
+  font-weight: 600;
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+
+.button:disabled { opacity: .68; }

@@ -2,13 +2,16 @@
   "name": "@root/database",
   "private": true,
   "version": "0.1.0",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "scripts": {
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:validate": "prisma validate --config prisma.config.ts",
     "db:migrate:dev": "prisma migrate dev --config prisma.config.ts",
+    "db:migrate:deploy": "prisma migrate deploy --config prisma.config.ts",
     "build": "prisma generate --config prisma.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "prisma generate --config prisma.config.ts && tsc --noEmit -p tsconfig.json",
-    "lint": "prisma generate --config prisma.config.ts && tsc --noEmit -p tsconfig.json"
+    "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
     "@prisma/client": "7.10.0",
@@ -21,6 +24,6 @@
     "@types/pg": "8.15.5",
     "prisma": "7.10.0",
     "tsx": "4.20.5",
-    "typescript": "workspace:*"
+    "typescript": "5.9.2"
   }
 }
