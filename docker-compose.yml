@@ -1,4 +1,71 @@
 services:
+  web:
+    build:
+      context: .
+      target: development
+    command: ["pnpm", "--filter", "@root/web", "dev"]
+    init: true
+    environment:
+      NODE_ENV: development
+      DOCKER_DEV: "true"
+      VITE_TRPC_URL: /trpc
+      API_PROXY_TARGET: http://api:3000
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./apps/web/src:/workspace/apps/web/src
+      - ./apps/web/index.html:/workspace/apps/web/index.html
+      - ./apps/web/vite.config.ts:/workspace/apps/web/vite.config.ts
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+  api:
+    build:
+      context: .
+      target: development
+    command: ["sh", "-c", "pnpm --filter @root/database db:migrate:deploy && pnpm --filter @root/api dev"]
+    init: true
+    environment:
+      NODE_ENV: development
+      API_PORT: "3000"
+      WEB_ORIGIN: "${WEB_ORIGIN:-http://localhost:5173}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:-root}@postgres:5432/${POSTGRES_DB:-root}?schema=public"
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:-root}"
+      MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:-root-password-change-me}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-audio}"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-local-development-secret-change-me}"
+      JWT_ACCESS_TTL_SECONDS: "${JWT_ACCESS_TTL_SECONDS:-900}"
+      REFRESH_TOKEN_TTL_SECONDS: "${REFRESH_TOKEN_TTL_SECONDS:-604800}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      TSC_WATCHFILE: DynamicPriorityPolling
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./apps/api/src:/workspace/apps/api/src
+      - ./packages/database/prisma:/workspace/packages/database/prisma
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 60s
   postgres:
     image: postgres:17-alpine
     container_name: root-postgres
@@ -24,8 +91,13 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   minio:
-    image: minio/minio:latest
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     container_name: root-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -37,6 +109,18 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
+  minio-init:
+    image: docker.io/pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-root}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-root-password-change-me}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-audio}"
+    entrypoint: ["/bin/sh", "/scripts/minio-init.sh"]
+    volumes:
+      - ./docker/minio-init.sh:/scripts/minio-init.sh:ro
 volumes:
   postgres_data:
   redis_data:

@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+.corepack-cache
+**/node_modules
+**/.turbo
+**/.pnpm-store
+**/dist
+**/build
+**/coverage
+**/.vite
+**/generated
+.DS_Store
+docs

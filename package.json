@@ -8,20 +8,31 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @root/trpc-contract build && turbo dev",
+    "dev": "pnpm --filter @root/trpc-contract build && pnpm --filter @root/database build && turbo dev",
     "build": "turbo build",
-    "typecheck": "turbo typecheck",
+    "typecheck": "pnpm --filter @root/trpc-contract build && pnpm --filter @root/database build && turbo typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix --max-warnings=0",
+    "test:auth": "pnpm --filter @root/web test:auth",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @root/database db:generate",
     "db:validate": "pnpm --filter @root/database db:validate",
     "db:migrate:dev": "pnpm --filter @root/database db:migrate:dev",
-    "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down"
+    "db:migrate:deploy": "pnpm --filter @root/database db:migrate:deploy",
+    "infra:up": "docker compose up --build -d",
+    "infra:down": "docker compose down",
+    "stack:up": "docker compose up --build -d",
+    "stack:down": "docker compose down",
+    "stack:logs": "docker compose logs -f web api"
   },
   "devDependencies": {
+    "@eslint/js": "9.36.0",
+    "eslint": "9.36.0",
+    "globals": "16.4.0",
     "prettier": "3.6.2",
     "turbo": "2.5.6",
+    "typescript-eslint": "8.44.1",
     "typescript": "5.9.2"
   }
 }
