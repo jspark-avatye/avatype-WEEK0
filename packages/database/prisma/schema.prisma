@@ -34,11 +34,109 @@ model UserAccount {
   loginId          String                @unique @map("login_id") @db.Text
   passwordHash     String                @map("password_hash") @db.Text
   accountStatus    AccountState          @default(ACTIVE) @map("account_status")
-  currentLevelCode ProficiencyLevelCode? @map("current_level_code")
   createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   refreshTokens    RefreshToken[]
+  evaluations      EvaluationSession[]
 
   @@map("user_account")
+}
+
+enum ProficiencyBandCode {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  @@map("proficiency_band_code")
+}
+
+enum EvaluationStatus {
+  READY
+  IN_PROGRESS
+  PAUSED
+  ENDING
+  ANALYSIS_PENDING
+  ANALYZING
+  COMPLETED
+  ANALYSIS_FAILED
+  @@map("evaluation_status")
+}
+
+enum AnswerProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  @@map("answer_processing_status")
+}
+
+enum EvaluationEndReason {
+  USER_ENDED
+  TIME_LIMIT
+  PAUSE_EXPIRED
+  SUFFICIENT_EVIDENCE
+  @@map("evaluation_end_reason")
+}
+
+model EvaluationSession {
+  evaluationId     String              @id @map("evaluation_id") @db.Uuid
+  userId           String              @map("user_id") @db.Uuid
+  topicCode        String              @map("topic_code") @db.Text
+  startingBandCode ProficiencyBandCode @map("starting_band_code")
+  status           EvaluationStatus    @default(READY)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt        DateTime?           @map("started_at") @db.Timestamptz(6)
+  pausedAt         DateTime?           @map("paused_at") @db.Timestamptz(6)
+  endedAt          DateTime?           @map("ended_at") @db.Timestamptz(6)
+  endReason        EvaluationEndReason? @map("end_reason")
+  user             UserAccount         @relation(fields: [userId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  questions        Question[]
+  report           EvaluationReport?
+
+  @@index([userId])
+  @@map("evaluation_session")
+}
+
+model Question {
+  questionId          String               @id @default(uuid()) @map("question_id") @db.Uuid
+  evaluationId        String               @map("evaluation_id") @db.Uuid
+  questionNo          Int                  @map("question_no")
+  content             String               @db.Text
+  difficultyLevelCode ProficiencyLevelCode @map("difficulty_level_code")
+  audioId             String?              @unique @map("audio_id") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  evaluation          EvaluationSession    @relation(fields: [evaluationId], references: [evaluationId], onDelete: Restrict, onUpdate: Restrict)
+  audio               AudioAsset?          @relation(fields: [audioId], references: [audioId], onDelete: Restrict, onUpdate: Restrict)
+  answer              Answer?
+
+  @@unique([evaluationId, questionNo])
+  @@map("question")
+}
+
+model AudioAsset {
+  audioId    String    @id @default(uuid()) @map("audio_id") @db.Uuid
+  objectKey  String    @unique @map("object_key") @db.Text
+  mimeType   String    @map("mime_type") @db.Text
+  byteSize   BigInt    @map("byte_size")
+  durationMs BigInt    @map("duration_ms")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  question   Question?
+  answer     Answer?
+
+  @@map("audio_asset")
+}
+
+model Answer {
+  answerId         String                 @id @default(uuid()) @map("answer_id") @db.Uuid
+  questionId       String                 @unique @map("question_id") @db.Uuid
+  audioId          String                 @unique @map("audio_id") @db.Uuid
+  transcript       String?                @db.Text
+  processingStatus AnswerProcessingStatus @default(PENDING) @map("processing_status")
+  acceptedAt       DateTime               @default(now()) @map("accepted_at") @db.Timestamptz(6)
+  completedAt      DateTime?              @map("completed_at") @db.Timestamptz(6)
+  question         Question               @relation(fields: [questionId], references: [questionId], onDelete: Restrict, onUpdate: Restrict)
+  audio            AudioAsset             @relation(fields: [audioId], references: [audioId], onDelete: Restrict, onUpdate: Restrict)
+  evidence         CriterionEvidence[]
+
+  @@map("answer")
 }
 
 model RefreshToken {
@@ -52,4 +150,77 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_token")
+}
+
+enum EvaluationVerdict {
+  CONFIRMED
+  PROVISIONAL
+  UNASSESSABLE
+  @@map("evaluation_verdict")
+}
+
+enum AssessmentCriterionCode {
+  VOCABULARY
+  GRAMMAR
+  PRONUNCIATION
+  FLUENCY
+  RELEVANCE
+  @@map("assessment_criterion_code")
+}
+
+enum FeedbackKind {
+  IMPROVEMENT
+  EXPRESSION_CORRECTION
+  @@map("feedback_kind")
+}
+
+model EvaluationReport {
+  reportId       String                 @id @default(uuid()) @map("report_id") @db.Uuid
+  evaluationId   String                 @unique @map("evaluation_id") @db.Uuid
+  finalLevelCode ProficiencyLevelCode?   @map("final_level_code")
+  verdict        EvaluationVerdict
+  summary        String                 @db.Text
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  evaluation     EvaluationSession      @relation(fields: [evaluationId], references: [evaluationId], onDelete: Restrict, onUpdate: Restrict)
+  criteria       CriterionResult[]
+  @@map("evaluation_report")
+}
+
+model CriterionResult {
+  resultId           String                  @id @default(uuid()) @map("result_id") @db.Uuid
+  reportId           String                  @map("report_id") @db.Uuid
+  criterionCode      AssessmentCriterionCode @map("criterion_code")
+  score              Decimal?                @db.Decimal(8, 3)
+  insufficientReason String?                 @map("insufficient_reason") @db.Text
+  rationale          String                  @db.Text
+  report             EvaluationReport        @relation(fields: [reportId], references: [reportId], onDelete: Restrict, onUpdate: Restrict)
+  feedback           CriterionFeedback[]
+  evidence           CriterionEvidence[]
+  @@unique([reportId, criterionCode])
+  @@map("criterion_result")
+}
+
+model CriterionFeedback {
+  feedbackId   String          @id @default(uuid()) @map("feedback_id") @db.Uuid
+  resultId     String          @map("result_id") @db.Uuid
+  feedbackNo   Int             @map("feedback_no")
+  feedbackKind FeedbackKind    @map("feedback_kind")
+  suggestion   String          @db.Text
+  explanation  String          @db.Text
+  result       CriterionResult @relation(fields: [resultId], references: [resultId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([resultId, feedbackNo])
+  @@map("criterion_feedback")
+}
+
+model CriterionEvidence {
+  resultId    String          @map("result_id") @db.Uuid
+  answerId    String          @map("answer_id") @db.Uuid
+  evidenceNo  Int             @map("evidence_no")
+  explanation String          @db.Text
+  result      CriterionResult @relation(fields: [resultId], references: [resultId], onDelete: Restrict, onUpdate: Restrict)
+  answer      Answer          @relation(fields: [answerId], references: [answerId], onDelete: Restrict, onUpdate: Restrict)
+  @@id([resultId, answerId])
+  @@unique([resultId, evidenceNo])
+  @@index([answerId])
+  @@map("criterion_evidence")
 }

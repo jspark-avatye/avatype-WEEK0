@@ -38,6 +38,7 @@ export interface PasswordHasher {
 }
 
 export interface AuthUseCase {
+  checkActive(userId: string): Promise<void>;
   signup(input: {
     loginId: string;
     password: string;

@@ -9,7 +9,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "lint": "eslint . --max-warnings=0",
     "test:auth": "node --test test/auth-flow.test.mjs",
-    "preview": "vite preview --host 0.0.0.0"
+    "test:evaluation": "node --test test/evaluation-flow.test.mjs",
+    "test:audio": "node test/run-audio-unit.mjs",
+    "test:render": "node --test test/render.test.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test:report:integration": "node --test test/report-flow.test.mjs"
   },
   "dependencies": {
     "@root/trpc-contract": "workspace:*",

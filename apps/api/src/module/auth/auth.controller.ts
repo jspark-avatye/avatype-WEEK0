@@ -78,6 +78,10 @@ export class AuthController implements AuthRpcController {
     return this.run(async () => toPublicAccount(await this.useCase.me(userId)));
   }
 
+  checkActive(userId: string) {
+    return this.run(() => this.useCase.checkActive(userId));
+  }
+
   refresh(refreshToken: string | undefined) {
     return this.run(async () => {
       if (!validRefresh(refreshToken)) throw new AuthError('UNAUTHORIZED', '인증에 실패했습니다.');

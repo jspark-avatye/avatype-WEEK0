@@ -1,4 +1,4 @@
-// Basic nine-table ERD including Refresh Token. Additional integrity rules: erd.md.
+// Normalized ten-table ERD including report-to-answer evidence. Integrity rules: erd.md.
 Project english_conversation_assessment {
   database_type: 'PostgreSQL'
 }
@@ -37,6 +37,13 @@ Enum evaluation_status {
   ANALYSIS_FAILED
 }
 
+Enum evaluation_end_reason {
+  USER_ENDED
+  TIME_LIMIT
+  PAUSE_EXPIRED
+  SUFFICIENT_EVIDENCE
+}
+
 Enum answer_processing_status {
   PENDING
   PROCESSING
@@ -68,7 +75,6 @@ Table user_account {
   login_id text [not null, unique, note: '로그인 ID']
   password_hash text [not null, note: '비밀번호 해시']
   account_status account_state [not null, note: '계정 상태']
-  current_level_code proficiency_level_code [null, note: '현재 평가 수준']
   created_at timestamptz [not null, note: '생성 시각']
   Note: '회원 계정'
 }
@@ -86,12 +92,14 @@ Table refresh_token {
 Table evaluation_session {
   evaluation_id uuid [not null, pk, note: '평가 ID']
   user_id uuid [not null, note: '회원 ID']
+  topic_code text [not null, note: '선택한 주제 코드; 서버 정의의 DAILY_LIFE, TRAVEL, WORK']
   starting_band_code proficiency_band_code [not null, note: '시작 수준']
   status evaluation_status [not null, note: '평가 상태']
   created_at timestamptz [not null, note: '생성 시각']
   started_at timestamptz [null, note: '시작 시각']
   paused_at timestamptz [null, note: '최근 일시정지 시각']
   ended_at timestamptz [null, note: '종료 시각']
+  end_reason evaluation_end_reason [null, note: '종료 시각과 함께 존재']
   Note: '평가 세션'
 }
 
@@ -116,6 +124,7 @@ Table answer {
   transcript text [null, note: '전체 전사문']
   processing_status answer_processing_status [not null, note: '처리 상태']
   accepted_at timestamptz [not null, note: '답변 접수 시각']
+  completed_at timestamptz [null, note: 'COMPLETED에서만 존재; 접수 시각 이상']
   Note: '답변'
 }
 
@@ -165,6 +174,19 @@ Table criterion_feedback {
   Note: '평가 피드백'
 }
 
+Table criterion_evidence {
+  result_id uuid [not null, note: '항목 결과 ID']
+  answer_id uuid [not null, note: '근거 답변 ID; 질문·전사·음성은 관계 조회']
+  evidence_no integer [not null, note: '항목 내 근거 순서; 1~3']
+  explanation text [not null, note: '해당 답변을 근거로 사용한 이유']
+  indexes {
+    (result_id, answer_id) [pk]
+    (result_id, evidence_no) [unique]
+    answer_id
+  }
+  Note: '복수 답변 전체 음성을 항목 근거로 연결'
+}
+
 Ref: refresh_token.user_id > user_account.user_id [delete: restrict, update: restrict]
 Ref: evaluation_session.user_id > user_account.user_id [delete: restrict, update: restrict]
 Ref: question.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
@@ -174,3 +196,5 @@ Ref: answer.audio_id > audio_asset.audio_id [delete: restrict, update: restrict]
 Ref: evaluation_report.evaluation_id > evaluation_session.evaluation_id [delete: restrict, update: restrict]
 Ref: criterion_result.report_id > evaluation_report.report_id [delete: restrict, update: restrict]
 Ref: criterion_feedback.result_id > criterion_result.result_id [delete: restrict, update: restrict]
+Ref: criterion_evidence.result_id > criterion_result.result_id [delete: restrict, update: restrict]
+Ref: criterion_evidence.answer_id > answer.answer_id [delete: restrict, update: restrict]

@@ -8,6 +8,10 @@ export class AuthApplicationService implements AuthUseCase {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
+  async checkActive(userId: string): Promise<void> {
+    requireActive(await this.repository.findByUserId(userId));
+  }
+
   async signup(input: {
     loginId: string;
     password: string;

@@ -7,7 +7,12 @@
     "build": "nest build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings=0",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test:evaluation": "node test/run-unit.mjs",
+    "ai:check": "pnpm build && node dist/ai-check.js",
+    "test:report": "node test/run-report-unit.mjs",
+    "test:report:db": "node --test test/report-database.test.mjs",
+    "report:check": "pnpm build && node dist/report-check.js"
   },
   "dependencies": {
     "@nestjs/common": "11.1.6",
@@ -19,7 +24,10 @@
     "dotenv": "16.6.1",
     "jose": "6.2.5",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "bullmq": "5.61.2",
+    "minio": "8.0.5",
+    "openai": "6.1.0"
   },
   "devDependencies": {
     "@types/express": "5.0.3",

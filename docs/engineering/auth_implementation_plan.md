@@ -90,3 +90,15 @@ Prisma에 ERD의 `user_account`와 `refresh_token`만 인증 기능에 필요한
 | 브라우저 전체 흐름 | 가입·로그인·새로고침 복원·만료 후 단일 갱신·로그아웃·재접근 차단 확인 |
 
 참고: 이 계획에서 사용하는 쿠키 속성은 [MDN Set-Cookie 문서](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie), 비밀번호 해시 선택은 [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)를 따른다.
+
+## 평가 조회 401 점검
+
+`evaluation.get`의 HTTP 401은 WAS가 회원 인증을 거절한 결과다. OpenAI 호출 실패는 회화 작업의 `errorCode`로 조회되므로 이 HTTP 401과 구분한다. 최초 만료 JWT 요청이 401이어도 `auth.refresh`와 GET 재요청이 성공하면 인증은 복구된 것이다. 갱신 요청 자체의 실패와 갱신 후에도 남는 401을 별도로 확인한다.
+
+실제 FE 클라이언트로 Bearer 헤더 전달, 갱신 후 단일 GET 재요청, 동시 요청의 갱신 공유, 갱신 실패 시 인증 해제, multipart 원본 유지 테스트를 추가했다. 401이 돌아오기 전에 메모리 토큰이 사라진 경우에도 `root:unauthorized`를 알려 로그인 상태와 Query 캐시를 해제하도록 수정했다. 기존 코드는 이 경우 로그인한 화면을 남겨 두었다.
+
+사용자 환경의 실제 401 원인은 최초 요청의 Authorization 존재 여부, 뒤따르는 `auth.refresh` 응답 및 재요청 GET 상태를 확인해야 확정할 수 있다. 이 테스트는 실제 브라우저 쿠키 저장·전송을 대체하지 않는다.
+
+## 보고서 구현에 따른 현재 수준 조회 (2026-10-14)
+
+user_account.current_level_code를 중복 저장하지 않는다. 로그인·회원 조회·RefreshCredential의 currentLevelCode는 최신 CONFIRMED 보고서를 평가 시작/보고서 생성/보고서 ID 내림차순으로 조회한다. 공개 인증 DTO는 유지하며 확정 보고서가 없으면 NULL이다.

@@ -47,7 +47,7 @@
 |EVAL-08|평가 재개|평가 세션 ID|소유권·일시정지 상태·재개 허용 시간 확인, 마지막 확정 질문과 답변 상태 복원|재개 상태 반환. 허용 시간을 넘긴 세션은 종료 처리|
 |EVAL-09|평가 일시정지|평가 세션 ID|소유권·진행 상태 확인, 현재 진행 상태 저장 및 일시정지 시각 기록|일시정지 상태 반환|
 
-평가 세션의 회화 상황·범위(예: 여행, 직장)를 관리한다. 사용자는 세션 생성 시 활성 주제를 고르며, AI 질문 생성에 맥락으로 전달한다. 개별 질문은 `question`, 채점 기준은 `rubric_criterion`에 둔다. 비활성화해도 기존 세션의 참조는 유지한다. 의미가 바뀐 주제는 새 코드로 추가한다. 예시는 확정 목록이 아니다.
+평가 세션의 회화 상황·범위(일상·여행·직장)를 선택한다. 주제는 서버의 고정 코드로 정의하고 세션의 topic_code에 저장한다. 개별 질문은 question, 고정 5개 채점 항목은 assessment_criterion_code ENUM으로 관리한다.
 
 **처리 규칙**
 - 시작 수준은 `BEGINNER`, `INTERMEDIATE`, `ADVANCED` 중 하나로 제한한다.
@@ -68,12 +68,12 @@
 |REPORT-04|보고서 조회|평가 세션 ID|인증·소유권·분석 완료 여부 확인|최종 수준, 항목별 점수, 근거, 개선 사항 반환|
 |REPORT-05|평가 기록 조회|페이지 정보|사용자 본인의 평가 기록 조회|주제, 평가 일시, 상태, 최종 수준 목록 반환|
 **결과 규칙**
-- 최종 수준은 초급·중급·고급 각각의 하·중·상, 총 9개로 고정한다. 저장 코드는 `BEGINNER_LOW`부터 `ADVANCED_HIGH`까지이며, 전체 값은 [ERD의 고정 평가 항목과 수준](../engineering/erd.md#22-고정-평가-항목과-수준)에 정의한다.
-- 결과 판정 상태는 `확정`, `잠정`, `평가 불가`로 구분한다.
+- 최종 수준은 초급·중급·고급 각각의 하·중·상, 총 9개로 고정한다. 저장 코드는 `BEGINNER_LOW`부터 `ADVANCED_HIGH`까지이며, 전체 값은 [ERD의 고정 평가 항목과 수준](../engineering/erd.md#enum-허용값)에 정의한다.
+- 결과 판정 상태는 `확정`, `잠정`, `평가 불가`로 구분한다. AI가 수준을 판단할 수 있고 유효 답변 5개 이상·5개 항목 채점 가능이면 확정, 기준 미달은 잠정, 수준 판단 불가는 평가 불가다.
 - 평가 항목은 어휘(`VOCABULARY`), 문법(`GRAMMAR`), 발음(`PRONUNCIATION`), 유창성(`FLUENCY`), 답변 적절성(`RELEVANCE`)의 5개로 고정한다.
-- 근거가 부족한 항목은 점수 `0` 대신 ‘평가 데이터 부족’으로 표시한다.
-- 음성 인식이 불확실한 구간은 재검증하거나 평가에서 제외한다.
-- 평가 근거는 실제 질문·답변 ID 및 음성 구간과 연결한다.
+- 항목별 점수는 0~100 정수다. 최종 수준은 점수 평균 환산이 아닌 고정 수준 설명에 따른 AI 판단을 사용한다. 근거 부족은 NULL과 사유를 저장하고 ‘평가 데이터 부족’으로 표시한다.
+- 원본 음성 검토로 전사 사용 가능 여부를 확인하고 인식이 불확실한 답변은 해당 항목의 평가에서 제외한다.
+- 항목마다 최대 3개 실제 답변을 근거로 연결하며 해당 답변의 원본 녹음 전체를 조회·재생한다. 질문·전사·음성·길이는 관계에서 조회한다.
 - 표현 수정과 개선 피드백은 평가 종료 후 보고서에서만 제공한다.
 
 ## 5. 평가 상태 관리
@@ -94,15 +94,16 @@
 |---|---|
 |사용자|사용자 ID, 로그인 ID, 비밀번호 해시, 계정 상태, 생성 시각|
 |리프레시 토큰|토큰 ID, 사용자 ID, 토큰 해시, 최초 발급 시각, 만료 시각, 폐기 시각|
-|평가 세션|평가 ID, 사용자 ID, 주제, 시작 수준, 상태, 정책 버전, 시작·종료 시각, 종료 사유|
-|질문|질문 ID, 평가 ID, 순서, 내용, 난이도, 평가 의도, 음성 참조|
-|답변|답변 ID, 질문 ID, 음성 참조, 전사문, 인식 신뢰도, 처리 상태|
-|분석 작업|작업 ID, 평가 ID, 상태, 시도 횟수, 오류 코드, 평가 기준·모델 버전|
+|평가 세션|평가 ID, 사용자 ID, 주제, 시작 수준, 상태, 시작·종료 시각, 종료 사유|
+|질문|질문 ID, 평가 ID, 순서, 내용, 난이도, 음성 참조|
+|답변|답변 ID, 질문 ID, 음성 참조, 전사문, 처리 상태|
 |평가 보고서|평가 ID, 최종 수준, 판정 상태, 항목별 점수·근거, 평가 제한 사항, 개선 피드백|
 
-## API 초안
+## 구현된 tRPC API
 
-인증 기능은 tRPC 프로시저로 구현한다. 아래 평가 관련 HTTP 경로는 기능 대응을 위한 초안이며, 실제 라우팅은 아키텍처 문서의 tRPC 구조를 따른다.
+모든 기능은 tRPC → Nest Controller → 인바운드 포트 구조를 따른다. 분석 단계·오류·시도 횟수는 Redis/BullMQ에서 관리하고 별도 운영 이력 테이블을 만들지 않는다. 현재 수준은 최신 확정 보고서에서 조회한다.
+
+세션 생성 요청에는 FE가 생성한 evaluationId를 포함해 중복 생성을 방지한다. 상세 동작과 실제 검증 범위는 [회화 구현 결과](../engineering/conversation_implementation.md), [보고서 구현 결과](../engineering/report_implementation.md)를 따른다.
 
 | Method | 경로                              | 기능             |
 | ------ | ------------------------------- | -------------- |
@@ -111,13 +112,19 @@
 | POST   | `/trpc/auth.logout`             | 로그아웃           |
 | POST   | `/trpc/auth.refresh`            | 토큰 갱신          |
 | GET    | `/trpc/auth.me`                 | 인증 상태 및 사용자 조회 |
-| GET    | `/api/evaluation-options`       | 평가 설정 조회       |
-| POST   | `/api/evaluations`              | 평가 세션 생성       |
-| POST   | `/api/evaluations/{id}/start`   | 평가 시작          |
-| POST   | `/api/evaluations/{id}/answers` | 음성 답변 접수       |
-| POST   | `/api/evaluations/{id}/end`     | 평가 종료          |
-| POST   | `/api/evaluations/{id}/pause`   | 평가 일시정지       |
-| POST   | `/api/evaluations/{id}/resume`  | 평가 재개          |
-| GET    | `/api/evaluations/{id}`         | 평가 상태 조회       |
-| GET    | `/api/evaluations/{id}/report`  | 보고서 조회         |
-| GET    | `/api/evaluations`              | 본인 평가 기록 조회    |
+| GET    | `/trpc/evaluation.options` | 평가 설정 조회 |
+| POST   | `/trpc/evaluation.create` | 평가 세션 생성 |
+| POST   | `/trpc/evaluation.start` | 평가 시작 |
+| POST   | `/trpc/evaluation.submitAnswer` | FormData 음성 답변 접수 |
+| POST   | `/trpc/evaluation.end` | 평가 종료 |
+| POST   | `/trpc/evaluation.pause` | 평가 일시정지 |
+| POST   | `/trpc/evaluation.resume` | 평가 재개 |
+| POST   | `/trpc/evaluation.retry` | 회화 작업 재시도 |
+| GET    | `/trpc/evaluation.get` | 평가 상태 조회 |
+| GET    | `/trpc/evaluation.resumable` | 재개 가능한 평가 |
+| GET    | `/trpc/evaluation.audio` | 현재 질문 음성 |
+| POST   | `/trpc/report.analyze` | 보고서 분석 시작 |
+| POST   | `/trpc/report.retry` | 보고서 분석 재시도 |
+| GET    | `/trpc/report.get` | 분석 상태·보고서 조회 |
+| GET    | `/trpc/report.history` | 본인 평가 기록 조회 |
+| GET    | `/trpc/report.answerAudio` | 보고서 근거 답변 음성 |

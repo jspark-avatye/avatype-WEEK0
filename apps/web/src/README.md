@@ -58,4 +58,6 @@ Atomic UI 방침은 `shared/ui`의 작은 공통 컴포넌트와 이를 조합�
 
 새 슬라이스에는 필요한 `ui`, `api`, `model`, `lib` 세그먼트만 만든다. 인증 슬라이스는 구현되었으며 각 디렉터리의 README는 후속 기능을 넣을 기준이다.
 
+첫 질문 기능은 `pages/evaluation-setup`, `pages/evaluation`, `features/start-evaluation`, `entities/evaluation`에 배치한다. 음성 회화는 `features/submit-voice-answer`와 `features/control-evaluation`을 페이지에서 조합한다. 마이크 확인·녹음·음성 재생 기술은 `shared/lib/audio`가 제공한다. 로그인한 사용자는 홈·평가 설정·개별 평가 경로로 이동할 수 있다. 같은 feature 레이어의 슬라이스 간 직접 참조는 추가하지 않는다.
+
 근거: [FSD 레이어와 의존 규칙](https://feature-sliced.design/docs/reference/layers), [FSD 공개 API](https://feature-sliced.design/docs/reference/public-api).

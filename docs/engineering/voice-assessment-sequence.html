@@ -18,8 +18,8 @@
     button { border: 1px solid #d9e0d9; border-radius: 8px; padding: 9px 14px; background: white; color: #53645a; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
     button.active { background: #203e32; color: white; border-color: #203e32; }
     .diagram-card { overflow: auto; padding: 26px 22px 30px; border: 1px solid #e0e6df; border-radius: 15px; background: #fff; box-shadow: 0 12px 40px #243b2c0b; }
-    .mermaid { min-width: 1050px; display: flex; justify-content: center; }
-    .mermaid svg { max-width: none; height: auto; }
+    .mermaid { display: flex; justify-content: center; }
+    .mermaid svg { width: 100%; max-width: 100%; height: auto; }
     .source { display: none; min-width: 760px; margin: 0; padding: 20px; border-radius: 10px; background: #182820; color: #dcebe0; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; overflow: auto; }
     .note-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
     .note { min-height: 100px; padding: 17px 18px; border: 1px solid #e0e6df; border-radius: 12px; background: #fff; }
@@ -34,7 +34,7 @@
   <main class="shell">
     <div class="eyebrow">ROOT · VOICE ASSESSMENT</div>
     <h1>로그인부터 영어 회화 평가 보고서까지</h1>
-    <p class="subtitle">현재 9개 테이블 ERD 기준 · 인증, 질문 음성, 답변 전사, 후속 질문, 최종 보고서의 흐름</p>
+    <p class="subtitle">발표용 요약 · 섹션별 약 1분 · 로그인 → 첫 질문 → 답변 → 후속 질문 → 보고서</p>
     <div class="toolbar" role="tablist" aria-label="다이어그램 보기">
       <button id="diagramTab" class="active" type="button" role="tab" aria-selected="true">시퀀스 다이어그램</button>
       <button id="sourceTab" type="button" role="tab" aria-selected="false">Mermaid 원본</button>
@@ -43,113 +43,82 @@
       <div id="diagram" class="mermaid">
 sequenceDiagram
     autonumber
-    actor Browser
     participant Client as Client · React
     participant WAS as WAS · NestJS
-    participant DB as DB · PostgreSQL
-    participant MinIO as MinIO · 단일 음성 버킷
     participant OpenAI as OpenAI API
+    participant MinIO as MinIO · 음성 저장
+    participant DB as DB · PostgreSQL
 
     rect rgb(238, 246, 240)
-    Note over Browser,OpenAI: 1. 로그인 및 토큰 갱신
-    Browser->>Client: ID와 비밀번호 입력
+    Note over Client,DB: 1. 로그인 및 토큰 갱신
     Client->>WAS: auth.login (tRPC)
-    WAS->>DB: user_account 조회 · 비밀번호와 계정 상태 검증
-    WAS->>DB: refresh_token 해시 · 최초 만료 시각 저장
-    WAS-->>Client: Access JWT · Refresh Token HttpOnly 쿠키
-    opt Access JWT 만료 후 갱신
-        Client->>WAS: auth.refresh (Refresh Token 쿠키)
-        WAS->>DB: 토큰 해시 · 만료 · 폐기 · 회원 상태 확인
-        WAS->>DB: 기존 해시 조건으로 token_hash 원자적 교체
-        WAS-->>Client: 새 Access JWT · 새 Refresh Token 쿠키
+    WAS->>DB: 회원 확인 · Refresh Token 해시 저장
+    WAS-->>Client: Access JWT · Refresh Token 쿠키
+    opt Access JWT 만료
+        Client->>WAS: auth.refresh (tRPC)
+        WAS->>DB: Refresh Token 확인 · 교체
+        WAS-->>Client: 새 토큰
     end
     end
 
     rect rgb(244, 242, 250)
-    Note over Browser,OpenAI: 2. 평가 시작 — AI 첫 질문과 질문 음성
-    Browser->>Client: 평가 시작 클릭
-    Client->>WAS: EVAL-03 평가 시작 (tRPC)
-    WAS->>DB: evaluation_session.started_at · status 갱신
-    WAS->>OpenAI: 첫 질문 생성 요청 (시작 수준 · 대화 맥락)
-    OpenAI-->>WAS: 질문 텍스트 · 난이도
-    WAS->>DB: question 저장 (evaluation_id · question_no · content)
-    WAS->>OpenAI: 질문 텍스트 TTS 요청
-    OpenAI-->>WAS: 합성 음성 바이트
-    WAS->>MinIO: 단일 버킷의 questions/ 프리픽스에 음성 저장
-    MinIO-->>WAS: object_key
-    WAS->>DB: audio_asset.object_key 저장 · question.audio_id 연결
-    WAS-->>Client: 질문 텍스트 · 질문 음성 접근 URL
-    Client->>Browser: 질문 재생
+    Note over Client,DB: 2. 평가 시작 — 첫 질문 준비와 재생
+    Note over Client: 주제·시작 수준 선택 · 마이크 확인
+    Client->>WAS: evaluation.create (tRPC)
+    WAS->>DB: 평가 세션 생성
+    Client->>WAS: evaluation.start (tRPC)
+    Note over WAS,OpenAI: BullMQ Worker가 비동기로 질문 준비
+    WAS->>OpenAI: 첫 질문 생성 · TTS
+    OpenAI-->>WAS: 질문 텍스트 · MP3
+    WAS->>MinIO: 질문 음성 저장
+    WAS->>DB: 질문·음성 정보 저장 · 평가 시작 확정
+    Client->>WAS: evaluation.get · evaluation.audio (tRPC)
+    WAS-->>Client: 첫 질문 표시 · 음성 재생
     end
 
     rect rgb(250, 246, 235)
-    Note over Browser,OpenAI: 3. 사용자 답변 — 음성 저장과 전체 전사
-    Browser->>Client: 답변 녹음 · 제출
-    Client->>Browser: 마이크 접근 · MediaRecorder 녹음
-    Browser-->>Client: 답변 음성 Blob
-    Client->>WAS: EVAL-04 답변 제출 (평가 ID · 질문 ID · 음성)
-    WAS->>MinIO: 단일 버킷의 answers/ 프리픽스에 음성 저장
-    MinIO-->>WAS: object_key
-    WAS->>DB: audio_asset · answer 저장 (processing_status=PENDING)
-    WAS->>DB: answer.processing_status=PROCESSING
-    WAS->>OpenAI: STT 요청 (원본 음성)
-    alt 전사 성공
-        OpenAI-->>WAS: 전체 전사문
-        WAS->>DB: answer.transcript 저장 · processing_status=COMPLETED
-    else 전사 실패
-        OpenAI-->>WAS: 처리 오류
-        WAS->>DB: answer.processing_status=FAILED
-    end
+    Note over Client,DB: 3. 사용자 답변 — 음성 저장과 전사
+    Client->>WAS: 녹음한 답변 제출
+    WAS->>MinIO: 답변 음성 저장
+    WAS->>OpenAI: STT · 답변 음성을 텍스트로 변환
+    OpenAI-->>WAS: 전사문
+    WAS->>DB: 답변·전사문 저장
     end
 
     rect rgb(238, 246, 240)
-    Note over Browser,OpenAI: 4. 후속 질문 또는 평가 종료
-    WAS->>OpenAI: 다음 진행 판단 (질문 · 답변 음성 · 전사문 · 대화 맥락)
+    Note over Client,DB: 4. 후속 질문 또는 평가 종료
+    WAS->>OpenAI: 대화 맥락으로 다음 진행 판단
     OpenAI-->>WAS: 계속 또는 종료 제안
     alt 대화 계속
-        WAS->>OpenAI: 후속 질문 생성 (대화 맥락)
-        OpenAI-->>WAS: 다음 질문 텍스트 · 난이도
-        WAS->>DB: 새 question 저장 (다음 question_no)
-        WAS->>OpenAI: 다음 질문 TTS 요청
-        OpenAI-->>WAS: 합성 음성 바이트
-        WAS->>MinIO: questions/ 프리픽스에 음성 저장
-        MinIO-->>WAS: object_key
-        WAS->>DB: audio_asset 저장 · question.audio_id 연결
-        WAS-->>Client: 다음 질문 · 음성 접근 URL
-        Client->>Browser: 다음 질문 음성 재생
+        WAS->>OpenAI: 후속 질문 생성 · TTS
+        OpenAI-->>WAS: 다음 질문 · 음성
+        Note over WAS,DB: 질문·음성 저장은 2번과 같은 흐름
+        WAS-->>Client: 다음 질문 표시 · 음성 재생
     else 평가 종료
-        WAS->>DB: evaluation_session.ended_at · status 갱신
-        WAS-->>Client: 답변 접수 · 분석 대기 상태
+        WAS->>DB: 평가 종료 저장
+        WAS-->>Client: 결과 분석 중 안내
     end
     end
 
     rect rgb(244, 242, 250)
-    Note over Browser,OpenAI: 5. 최종 보고서 저장 및 조회
-    WAS->>OpenAI: 전체 질문 · 답변 · 음성으로 최종 분석 요청
-    OpenAI-->>WAS: 최종 수준 · 판정 · 5개 항목 결과 · 피드백
-    Note over WAS,DB: 보고서 · 5개 항목 결과 · 피드백 · 상태 변경은 한 트랜잭션
-    WAS->>DB: evaluation_report · criterion_result 5행 · criterion_feedback 저장
-    WAS->>DB: evaluation_session.status=COMPLETED
-    opt 판정이 CONFIRMED이며 최신 확정 평가인 경우
-        WAS->>DB: user_account.current_level_code 갱신
+    Note over Client,DB: 5. 최종 보고서 저장 및 조회
+    WAS->>OpenAI: 전체 대화 최종 분석
+    OpenAI-->>WAS: 최종 수준 · 5개 항목 결과 · 피드백
+    WAS->>DB: 보고서 저장 · 평가 완료
+    Note over WAS,DB: 최신 확정 결과만 회원의 현재 수준에 반영
+    Client->>WAS: 보고서 조회
+    WAS->>DB: 저장된 보고서 조회
+    WAS-->>Client: 최종 수준 · 항목별 결과 · 피드백 표시
     end
-    Client->>WAS: REPORT-04 보고서 조회
-    WAS->>DB: 보고서 · 항목 결과 · 피드백 조회
-    WAS-->>Client: 최종 수준 · 항목별 결과 · 피드백
-    Client->>Browser: 보고서 표시
-    end
-
-    Note over DB,MinIO: DB는 object_key만 저장 · 버킷 이름은 서버 설정에서 관리
-    Note over WAS,DB: 질문 음성은 question.audio_id · 전체 전사는 answer.transcript
       </div>
       <pre id="source" class="source"></pre>
     </section>
     <section class="note-grid" aria-label="다이어그램 읽는 법">
-      <article class="note"><strong>인증</strong><p>Access JWT는 DB에 저장하지 않습니다. Refresh Token은 해시와 만료·폐기 정보만 저장하고 쿠키로 전달합니다.</p></article>
-      <article class="note"><strong>질문과 답변</strong><p>AI 질문은 question, 질문당 최대 하나의 사용자 답변은 answer에 저장합니다. 답변의 processing_status는 전사 처리 상태입니다.</p></article>
-      <article class="note"><strong>음성 및 결과</strong><p>MinIO의 단일 버킷에 음성을 저장합니다. DB에는 프리픽스가 포함된 object_key와 최종 보고서·항목 결과·피드백을 저장합니다.</p></article>
+      <article class="note"><strong>인증</strong><p>로그인 후 토큰으로 사용자를 확인하고, 만료되면 새 토큰으로 갱신합니다.</p></article>
+      <article class="note"><strong>대화</strong><p>AI 질문을 음성으로 듣고 답변합니다. 서버는 답변을 전사해 다음 질문이나 종료를 결정합니다.</p></article>
+      <article class="note"><strong>저장과 결과</strong><p>음성은 MinIO에, 대화와 평가 결과는 DB에 저장합니다. 마지막에 수준과 피드백을 보고서로 보여줍니다.</p></article>
     </section>
-    <p class="footer">현재 기본 ERD의 9개 테이블을 기준으로 한 흐름입니다. AI 처리 중간 결과는 별도 테이블에 저장하지 않습니다. 음성 전송의 구체적 HTTP 방식은 구현 시 확정합니다.</p>
+    <p class="footer">발표를 위해 핵심 흐름만 표시했습니다. 2번은 현재 구현 기준이며, 3~5번은 후속 구현의 설계입니다. 상세 내용은 <a href="./first_question_implementation.md">첫 질문 구현 문서</a>를 참고하세요.</p>
   </main>
   <script>
     const diagram = document.getElementById('diagram');
@@ -175,7 +144,7 @@ sequenceDiagram
         primaryColor: '#edf5ef', primaryTextColor: '#20392e', primaryBorderColor: '#8aab93',
         lineColor: '#61776a', secondaryColor: '#f1eff8', tertiaryColor: '#faf5e9',
         actorBkg: '#244637', actorBorder: '#244637', actorTextColor: '#ffffff', actorLineColor: '#afbab1',
-        signalColor: '#4a6656', signalTextColor: '#27382e', labelBoxBkgColor: '#f5f7f4', labelBoxBorderColor: '#d9e2da',
+        signalColor: '#4a6656', signalTextColor: '#27382e', labelTextColor: '#27382e', loopTextColor: '#27382e', labelBoxBkgColor: '#f5f7f4', labelBoxBorderColor: '#d9e2da',
         noteBkgColor: '#fff9e9', noteBorderColor: '#e7d9a9', noteTextColor: '#5d563c', activationBkgColor: '#dfece2', activationBorderColor: '#7e9c85'
       }});
     } else {

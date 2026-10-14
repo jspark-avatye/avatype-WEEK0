@@ -8,6 +8,7 @@ config({ path: resolve(__dirname, '../../../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   app.enableCors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' });
   await app.listen(Number(process.env.API_PORT ?? 3000), '0.0.0.0');
 }

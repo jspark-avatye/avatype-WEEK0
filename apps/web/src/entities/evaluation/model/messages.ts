@@ -1,0 +1,20 @@
+const messages: Record<string, string> = {
+  AI_CONFIGURATION: '기존 AI 연결 설정 오류입니다. 서버 설정 수정 후 재시도해 주세요.',
+  AI_KEY_MISSING: '서버에 OpenAI API 키가 설정되지 않았습니다. 설정 후 API를 다시 실행해 주세요.',
+  AI_AUTH_FAILED: 'OpenAI API 키 인증에 실패했습니다. 서버 키를 확인해 주세요.',
+  AI_ACCESS_DENIED: 'OpenAI 프로젝트에서 이 요청의 접근이 거부되었습니다. 키의 권한을 확인해 주세요.',
+  AI_MODEL_UNAVAILABLE: '설정된 OpenAI 모델을 사용할 수 없습니다. 모델 이름과 접근 권한을 확인해 주세요.',
+  AI_QUOTA_EXCEEDED: 'OpenAI 사용 할당량이 부족합니다. 프로젝트 결제와 사용 한도를 확인해 주세요.',
+  AI_INVALID_REQUEST: 'OpenAI 요청 형식 또는 모델 옵션을 확인해야 합니다.',
+  AI_RATE_LIMITED: 'OpenAI 호출 제한에 도달했습니다. 잠시 후 재시도해 주세요.',
+  AI_TIMEOUT: 'OpenAI 응답 대기 시간이 초과되었습니다. 재시도해 주세요.',
+  AI_UNAVAILABLE: 'OpenAI에 연결하지 못했습니다. 잠시 후 재시도해 주세요.',
+  AUDIO_CONFIGURATION: '서버의 ffmpeg·ffprobe 음성 처리 설정을 확인해 주세요.',
+  AI_REFUSAL: 'AI가 이 요청을 처리하지 못했습니다. 다른 주제로 평가를 시작해 주세요.',
+  ACCOUNT_INACTIVE: '이 계정으로 평가를 진행할 수 없습니다.',
+  AI_INVALID_OUTPUT: 'AI 질문 결과가 올바르지 않습니다. 재시도해 주세요.',
+  AI_INVALID_AUDIO: 'AI 질문 음성을 생성하지 못했습니다.',
+  STORAGE_UNAVAILABLE: '음성 파일을 저장하거나 가져오지 못했습니다.',
+  UNRECOGNIZABLE_AUDIO: '답변에서 영어 발화를 인식하지 못했습니다. 다시 녹음해 주세요.',
+};
+export function processingMessage(code: string | null): string { return messages[code ?? ''] ?? '답변 처리를 완료하지 못했습니다. 재시도해 주세요.'; }

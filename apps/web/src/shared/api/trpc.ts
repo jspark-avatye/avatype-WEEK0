@@ -29,10 +29,16 @@ export const trpcClient = trpc.createClient({
           }
           const retryHeaders = new Headers(options?.headers);
           const token = getAccessToken();
-          if (!token) return response;
+          if (!token) {
+            window.dispatchEvent(new Event('root:unauthorized'));
+            return response;
+          }
           retryHeaders.set('authorization', `Bearer ${token}`);
-          return fetch(url, { ...request, headers: retryHeaders });
+          const retried = await fetch(url, { ...request, headers: retryHeaders });
+          if (retried.status === 401) window.dispatchEvent(new Event('root:unauthorized'));
+          return retried;
         } catch {
+          window.dispatchEvent(new Event('root:unauthorized'));
           return response;
         }
       },

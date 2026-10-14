@@ -1,0 +1,8 @@
+{"schema":"openai.presentation.layout/v5","unit":"px","slide":{"id":"sl/xfm90o","index":0,"layout":{"id":"ly/twvyxg3a","name":"Blank"},"backgroundColor":"rgba(247,245,240,1)","position":{"left":0,"top":0,"width":1280,"height":720}},
+"elements":[
+{"id":"im/8vut07a5","kind":"image","position":{"left":780,"top":0,"width":500,"height":720},"fit":"cover","alt":"영어 음성 대화 프로젝트를 표현하는 헤드셋 콘셉트 이미지"},
+{"id":"sh/udojmpkj","kind":"textbox","name":"cover-brand","position":{"left":72,"top":66,"width":600,"height":120},"text":"root.","style":{"fontSize":94,"typeface":"Apple SD Gothic Neo","color":"#0B756D","bold":true,"alignment":"left"},"geometry":"rect","lineWidth":0},
+{"id":"sh/fex0vu14","kind":"textbox","name":"cover-title","position":{"left":72,"top":258,"width":690,"height":184},"text":"AI 음성 대화 기반\n영어 회화 평가","style":{"fontSize":58,"typeface":"Apple SD Gothic Neo","color":"#18343F","bold":true,"alignment":"left"},"geometry":"rect","lineWidth":0},
+{"id":"sh/sbm1kf2d","kind":"textbox","name":"cover-context","position":{"left":76,"top":478,"width":670,"height":52},"text":"2일 사내 해커톤 · 웹 프로젝트","style":{"fontSize":27,"typeface":"Apple SD Gothic Neo","color":"#5D727A","alignment":"left"},"geometry":"rect","lineWidth":0},
+{"id":"sh/tcfitkjy","kind":"textbox","name":"cover-background","position":{"left":76,"top":580,"width":670,"height":80},"text":"개발 배경\n대화 기록을 바탕으로 수준과 개선점을 확인하는 경험","style":{"fontSize":23,"typeface":"Apple SD Gothic Neo","color":"#5D727A","alignment":"left"},"geometry":"rect","lineWidth":0}
+]}

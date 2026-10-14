@@ -1,4 +1,8 @@
 import { TRPCError, initTRPC } from '@trpc/server';
+import { topicCodes, startingBands, type CreateEvaluationInput, type EvaluationRpcController } from './evaluation';
+export * from './evaluation';
+import type { HistoryInput, ReportRpcController } from './report';
+export * from './report';
 
 export type PublicUser = {
   userId: string;
@@ -30,11 +34,14 @@ export type AuthRpcController = {
   refresh(refreshToken: string | undefined): Promise<RefreshedAuth>;
   logout(refreshToken: string | undefined): Promise<void>;
   verifyAccess(authorization: string | undefined): Promise<string>;
+  checkActive(userId: string): Promise<void>;
 };
 
 export type RpcController = {
   health(): { status: 'ok' } | Promise<{ status: 'ok' }>;
   auth: AuthRpcController;
+  evaluation: EvaluationRpcController;
+  report: ReportRpcController;
 };
 
 export type RpcContext = {
@@ -91,10 +98,77 @@ const protectedAccess = t.middleware(async ({ ctx, next }) => {
 });
 
 const authMutation = t.procedure.use(sameOrigin);
+const evaluationAccess = t.procedure.use(protectedAccess).use(async ({ ctx, next }) => {
+  await ctx.controller.auth.checkActive(ctx.userId);
+  return next();
+});
+const evaluationMutation = evaluationAccess.use(sameOrigin);
+
+function uuid(value: unknown): string {
+  if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: '올바른 식별자가 필요합니다.' });
+  }
+  return value;
+}
+
+function parseEvaluationId(value: unknown): { evaluationId: string } {
+  return { evaluationId: uuid(objectInput(value).evaluationId) };
+}
+
+function parseCreateEvaluation(value: unknown): CreateEvaluationInput {
+  const input = objectInput(value);
+  const topicCode = topicCodes.find((code) => code === input.topicCode);
+  const startingBandCode = startingBands.find((code) => code === input.startingBandCode);
+  if (!topicCode || !startingBandCode) throw new TRPCError({ code: 'BAD_REQUEST', message: '주제와 시작 수준을 선택해 주세요.' });
+  return { evaluationId: uuid(input.evaluationId), topicCode, startingBandCode };
+}
+
+function parseAnswer(value: unknown): FormData {
+  if (!(value instanceof FormData)) throw new TRPCError({ code: 'BAD_REQUEST', message: '음성 파일이 필요합니다.' });
+  for (const key of ['evaluationId', 'questionId', 'audio']) {
+    if (value.getAll(key).length !== 1) throw new TRPCError({ code: 'BAD_REQUEST', message: '입력값을 확인해 주세요.' });
+  }
+  uuid(value.get('evaluationId')); uuid(value.get('questionId'));
+  const file = value.get('audio');
+  if (!(file instanceof Blob) || file.size < 1 || file.size > 10 * 1024 * 1024) throw new TRPCError({ code: 'BAD_REQUEST', message: '10 MiB 이하의 음성 파일이 필요합니다.' });
+  return value;
+}
 
 /** Procedures invoke Nest controllers supplied by the HTTP inbound adapter. */
+function parseHistory(value: unknown): HistoryInput {
+  const input = value === undefined ? {} : objectInput(value);
+  const page = input.page ?? 1; const pageSize = input.pageSize ?? 10;
+  if (typeof page !== 'number' || !Number.isSafeInteger(page) || page < 1 || page > 1000000
+    || typeof pageSize !== 'number' || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: '페이지 정보를 확인해 주세요.' });
+  }
+  return { page, pageSize };
+}
+
 export const appRouter = t.router({
   health: t.procedure.query(({ ctx }) => ctx.controller.health()),
+  report: t.router({
+    analyze: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.report.analyze(ctx.userId, input.evaluationId)),
+    get: evaluationAccess.input(parseEvaluationId).query(({ ctx, input }) => ctx.controller.report.get(ctx.userId, input.evaluationId)),
+    retry: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.report.retry(ctx.userId, input.evaluationId)),
+    history: evaluationAccess.input(parseHistory).query(({ ctx, input }) => ctx.controller.report.history(ctx.userId, input)),
+    answerAudio: evaluationAccess.input((value: unknown) => {
+      const input = objectInput(value); return { evaluationId: uuid(input.evaluationId), answerId: uuid(input.answerId) };
+    }).query(({ ctx, input }) => ctx.controller.report.answerAudio(ctx.userId, input.evaluationId, input.answerId)),
+  }),
+  evaluation: t.router({
+    submitAnswer: evaluationMutation.input(parseAnswer).mutation(({ ctx, input }) => ctx.controller.evaluation.submitAnswer(ctx.userId, input)),
+    pause: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.evaluation.pause(ctx.userId, input.evaluationId)),
+    resume: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.evaluation.resume(ctx.userId, input.evaluationId)),
+    end: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.evaluation.end(ctx.userId, input.evaluationId)),
+    resumable: evaluationAccess.query(({ ctx }) => ctx.controller.evaluation.resumable(ctx.userId)),
+    options: evaluationAccess.query(({ ctx }) => ctx.controller.evaluation.options(ctx.userId)),
+    create: evaluationMutation.input(parseCreateEvaluation).mutation(({ ctx, input }) => ctx.controller.evaluation.create(ctx.userId, input)),
+    start: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.evaluation.start(ctx.userId, input.evaluationId)),
+    get: evaluationAccess.input(parseEvaluationId).query(({ ctx, input }) => ctx.controller.evaluation.get(ctx.userId, input.evaluationId)),
+    retry: evaluationMutation.input(parseEvaluationId).mutation(({ ctx, input }) => ctx.controller.evaluation.retry(ctx.userId, input.evaluationId)),
+    audio: evaluationAccess.input((value: unknown) => ({ audioId: uuid(objectInput(value).audioId) })).query(({ ctx, input }) => ctx.controller.evaluation.audio(ctx.userId, input.audioId)),
+  }),
   auth: t.router({
     signup: authMutation.input(parseSignup).mutation(async ({ ctx, input }) => {
       const result = await ctx.controller.auth.signup(input);

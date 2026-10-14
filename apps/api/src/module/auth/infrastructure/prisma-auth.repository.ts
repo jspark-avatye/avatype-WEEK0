@@ -3,22 +3,20 @@ import type { PrismaClient } from '@root/database';
 import { AuthError } from '../domain/auth-error';
 import type { Account } from '../domain/account';
 import type { AuthRepository, RefreshCredential } from '../application/auth.ports';
-
-export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
+import { PRISMA_CLIENT } from '../../../database/database.module';
 
 function toAccount(row: {
   userId: string;
   loginId: string;
   passwordHash: string;
   accountStatus: 'ACTIVE' | 'DISABLED';
-  currentLevelCode: string | null;
-}): Account {
+}, currentLevelCode: string | null = null): Account {
   return {
     userId: row.userId,
     loginId: row.loginId,
     passwordHash: row.passwordHash,
     accountStatus: row.accountStatus,
-    currentLevelCode: row.currentLevelCode,
+    currentLevelCode,
   };
 }
 
@@ -30,14 +28,21 @@ function isUniqueViolation(error: unknown): boolean {
 export class PrismaAuthRepository implements AuthRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
+  private async latestLevel(userId: string): Promise<string | null> {
+    const report = await this.prisma.evaluationReport.findFirst({ where: { verdict: 'CONFIRMED', evaluation: { userId } },
+      orderBy: [{ evaluation: { startedAt: 'desc' } }, { createdAt: 'desc' }, { reportId: 'desc' }], select: { finalLevelCode: true },
+    });
+    return report?.finalLevelCode ?? null;
+  }
+
   async findByLoginId(loginId: string): Promise<Account | null> {
     const row = await this.prisma.userAccount.findUnique({ where: { loginId } });
-    return row ? toAccount(row) : null;
+    return row ? toAccount(row, await this.latestLevel(row.userId)) : null;
   }
 
   async findByUserId(userId: string): Promise<Account | null> {
     const row = await this.prisma.userAccount.findUnique({ where: { userId } });
-    return row ? toAccount(row) : null;
+    return row ? toAccount(row, await this.latestLevel(row.userId)) : null;
   }
 
   async createAccountWithRefresh(input: {
@@ -77,7 +82,7 @@ export class PrismaAuthRepository implements AuthRepository {
           tokenHash: row.tokenHash,
           expiresAt: row.expiresAt,
           revokedAt: row.revokedAt,
-          account: toAccount(row.user),
+          account: toAccount(row.user, await this.latestLevel(row.userId)),
         }
       : null;
   }

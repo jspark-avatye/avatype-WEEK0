@@ -1,0 +1,5 @@
+{
+  "type": "actual_frontend_with_sample_rpc_responses",
+  "source": "apps/web/src/pages/evaluation/ui/evaluation-page.tsx",
+  "note": "Screenshot shows current frontend code with illustrative sample API responses. It is not evidence of successful AI integration."
+}

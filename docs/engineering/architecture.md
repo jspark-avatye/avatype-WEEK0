@@ -28,6 +28,8 @@ Turborepo와 pnpm workspace를 사용하며 저장소 및 워크스페이스 패
 - API의 DB·Redis·음성 저장소 주소는 각각 `postgres:5432`, `redis:6379`, `minio:9000`이다.
 - PostgreSQL·Redis 준비와 MinIO 버킷 초기화가 완료된 뒤 API를 시작하고, API의 헬스 체크가 성공하면 web을 시작한다. 준비 상태에 따른 시작 순서는 [Docker Compose 공식 문서](https://docs.docker.com/compose/how-tos/startup-order/)를 따른다.
 - `minio-init`은 음성 버킷을 생성한 뒤 정상 종료하는 초기화 컨테이너다. 데이터는 named volume으로 유지한다.
+- 회화는 같은 WAS 프로세스의 BullMQ Worker가 첫 질문 LLM·TTS와 답변 STT → 후속 질문 LLM → TTS를 처리한다. 브라우저는 준비 중에만 진행 상태를 조회하고, 인증된 tRPC 음성 query로 MP3를 받아 재생한다. Docker 내부 MinIO 주소를 브라우저에 노출하지 않는다. 원본 답변은 MinIO·Answer 관계로 저장하고, 실제 형식·길이는 ffprobe/ffmpeg로 검증한다. 정지·재개·종료와 처리 중 경합은 세션 행 잠금 아래 내부 규칙을 재확인한다. 상세 동작·제약은 `conversation_implementation.md`를 따른다.
+- 보고서는 별도 ReportModule과 report-analysis Worker에서 원본 음성 관측 → 최종 구조화 평가 → 원자적 저장을 처리한다. 평가 모듈은 포트 연결 어댑터로 보고서 시작을 요청하며 MinIO Infrastructure provider를 공유한다. 현재 수준은 최신 확정 보고서에서 조회한다. UI가 사용하는 계약 상수는 서버 라우터를 초기화하지 않는 순수 `@root/trpc-contract/report`, `/evaluation` 진입점으로 제공한다. 상세 계약은 `report_implementation_plan.md`와 `report_implementation.md`를 따른다.
 - 모든 음성 객체는 하나의 고정 버킷에 저장하고 버킷 이름은 서버 설정에서 관리한다. DB에는 프리픽스를 포함한 유일한 object_key를 저장한다. 질문 음성은 `questions/`, 답변 음성은 `answers/` 프리픽스로 구분한다.
 
 실행·재빌드 명령과 접속 주소는 [README](../../README.md#start-everything-with-docker)에 정리한다. Compose는 실행 환경을 준비하며, 업무 Prisma 모델·마이그레이션 구현은 로드맵에서 진행한다.

@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./report": {
+      "types": "./dist/report.d.ts",
+      "default": "./dist/report.js"
+    },
+    "./evaluation": {
+      "types": "./dist/evaluation.d.ts",
+      "default": "./dist/evaluation.js"
     }
   },
   "scripts": {
@@ -21,5 +29,15 @@
   },
   "devDependencies": {
     "typescript": "5.9.2"
+  },
+  "typesVersions": {
+    "*": {
+      "report": [
+        "dist/report.d.ts"
+      ],
+      "evaluation": [
+        "dist/evaluation.d.ts"
+      ]
+    }
   }
 }

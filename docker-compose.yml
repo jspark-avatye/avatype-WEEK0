@@ -3,7 +3,7 @@ services:
     build:
       context: .
       target: development
-    command: ["pnpm", "--filter", "@root/web", "dev"]
+    command: ["sh", "-c", "pnpm --filter @root/trpc-contract build && pnpm --filter @root/web dev"]
     init: true
     environment:
       NODE_ENV: development
@@ -14,8 +14,12 @@ services:
       - "${WEB_PORT:-5173}:5173"
     volumes:
       - ./apps/web/src:/workspace/apps/web/src
+      - ./apps/web/package.json:/workspace/apps/web/package.json:ro
+      - ./apps/web/test:/workspace/apps/web/test:ro
       - ./apps/web/index.html:/workspace/apps/web/index.html
       - ./apps/web/vite.config.ts:/workspace/apps/web/vite.config.ts
+      - ./packages/trpc-contract/src:/workspace/packages/trpc-contract/src:ro
+      - ./packages/trpc-contract/package.json:/workspace/packages/trpc-contract/package.json:ro
     depends_on:
       api:
         condition: service_healthy
@@ -29,7 +33,7 @@ services:
     build:
       context: .
       target: development
-    command: ["sh", "-c", "pnpm --filter @root/database db:migrate:deploy && pnpm --filter @root/api dev"]
+    command: ["sh", "-c", "pnpm --filter @root/trpc-contract build && pnpm --filter @root/database build && pnpm --filter @root/database db:migrate:deploy && pnpm --filter @root/api dev"]
     init: true
     environment:
       NODE_ENV: development
@@ -47,11 +51,28 @@ services:
       JWT_ACCESS_TTL_SECONDS: "${JWT_ACCESS_TTL_SECONDS:-900}"
       REFRESH_TOKEN_TTL_SECONDS: "${REFRESH_TOKEN_TTL_SECONDS:-604800}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_LLM_MODEL: "${OPENAI_LLM_MODEL:-gpt-4o-mini}"
+      OPENAI_STT_MODEL: "${OPENAI_STT_MODEL:-gpt-4o-mini-transcribe}"
+      OPENAI_STT_TIMEOUT_MS: "${OPENAI_STT_TIMEOUT_MS:-30000}"
+      OPENAI_TTS_MODEL: "${OPENAI_TTS_MODEL:-gpt-4o-mini-tts}"
+      OPENAI_TTS_VOICE: "${OPENAI_TTS_VOICE:-coral}"
+      OPENAI_LLM_TIMEOUT_MS: "${OPENAI_LLM_TIMEOUT_MS:-30000}"
+      OPENAI_TTS_TIMEOUT_MS: "${OPENAI_TTS_TIMEOUT_MS:-30000}"
+      OPENAI_REPORT_AUDIO_MODEL: "${OPENAI_REPORT_AUDIO_MODEL:-gpt-audio-1.5}"
+      OPENAI_REPORT_LLM_MODEL: "${OPENAI_REPORT_LLM_MODEL:-gpt-4o-mini}"
+      OPENAI_REPORT_AUDIO_TIMEOUT_MS: "${OPENAI_REPORT_AUDIO_TIMEOUT_MS:-120000}"
+      OPENAI_REPORT_LLM_TIMEOUT_MS: "${OPENAI_REPORT_LLM_TIMEOUT_MS:-60000}"
       TSC_WATCHFILE: DynamicPriorityPolling
     ports:
       - "${API_PORT:-3000}:3000"
     volumes:
       - ./apps/api/src:/workspace/apps/api/src
+      - ./apps/api/package.json:/workspace/apps/api/package.json:ro
+      - ./apps/api/test:/workspace/apps/api/test:ro
+      - ./packages/trpc-contract/src:/workspace/packages/trpc-contract/src:ro
+      - ./packages/trpc-contract/package.json:/workspace/packages/trpc-contract/package.json:ro
+      - ./packages/database/src:/workspace/packages/database/src:ro
+      - ./packages/database/package.json:/workspace/packages/database/package.json:ro
       - ./packages/database/prisma:/workspace/packages/database/prisma
     depends_on:
       postgres:

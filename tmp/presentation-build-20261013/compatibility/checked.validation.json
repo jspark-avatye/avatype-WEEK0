@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "presentation-finalization.v1",
+  "finalSha256": "a7cf8313a47d592523186ccf16c00cce6b2ccbd91bb7c1c1676044f6ec51ac9d",
+  "byteCount": 2586461,
+  "packageIntegrity": {
+    "chart_count": 0,
+    "claim_boundary": "Structural package checks only; no slide text, notes, formulas, chart values, or native PowerPoint execution were inspected.",
+    "finding_count": 0,
+    "findings": [],
+    "notes_parts_skipped": 7,
+    "relationship_part_count": 24,
+    "slide_count": 7,
+    "status": "pass",
+    "exitCode": 0,
+    "findingCount": 0,
+    "warnings": []
+  },
+  "presentationLayout": {
+    "finding_count": 0,
+    "findings": [],
+    "font_policy": {
+      "checked_text_script_count": 130,
+      "native_font_rendering_verified": false,
+      "observed_font_families": [
+        "Apple SD Gothic Neo"
+      ],
+      "observed_font_use_counts": {
+        "Apple SD Gothic Neo": 130
+      },
+      "passed": true,
+      "performed": true
+    },
+    "slide_count": 7,
+    "slide_size_in": [
+      13.3333,
+      7.5
+    ],
+    "warning_count": 0,
+    "warnings": [],
+    "exitCode": 0,
+    "findingCount": 0,
+    "fontPolicy": {
+      "checked_text_script_count": 130,
+      "native_font_rendering_verified": false,
+      "observed_font_families": [
+        "Apple SD Gothic Neo"
+      ],
+      "observed_font_use_counts": {
+        "Apple SD Gothic Neo": 130
+      },
+      "passed": true,
+      "performed": true
+    }
+  },
+  "fontSelection": {
+    "basis": "reference",
+    "approvedFamilies": [
+      "Apple SD Gothic Neo"
+    ],
+    "scriptFonts": {
+      "ea": "Apple SD Gothic Neo"
+    },
+    "referenceSha256": "62e2519440c77ed64873bb2efcfd12871ab69fec452baa5ed96be638b1f1c120",
+    "referenceFontsVerifiedInEncodedText": true,
+    "checked_text_script_count": 130,
+    "native_font_rendering_verified": false,
+    "observed_font_families": [
+      "Apple SD Gothic Neo"
+    ],
+    "observed_font_use_counts": {
+      "Apple SD Gothic Neo": 130
+    },
+    "passed": true,
+    "performed": true
+  },
+  "firstPartyImport": {
+    "performed": true,
+    "passed": true,
+    "slideCount": 7,
+    "sha256": "a7cf8313a47d592523186ccf16c00cce6b2ccbd91bb7c1c1676044f6ec51ac9d",
+    "runtimeNodeModules": "/Users/parkjunseong/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules",
+    "nodeExecutable": "/Users/parkjunseong/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+  },
+  "nativeTableArithmetic": {
+    "performed": true,
+    "checked_column_count": 0,
+    "checks": [],
+    "claim_boundary": "Displayed-value arithmetic with rounding tolerance; not source-data verification.",
+    "eligible_table_count": 0,
+    "finding_count": 0,
+    "findings": [],
+    "native_table_count": 0,
+    "passed": true,
+    "schema_version": "presentation-native-table-arithmetic.v1",
+    "skipped_tables": [],
+    "slide_count": 7,
+    "warning_count": 0,
+    "warnings": []
+  },
+  "nativeChartTitles": {
+    "performed": true,
+    "checks": [],
+    "finding_count": 0,
+    "findings": [],
+    "native_chart_count": 0,
+    "native_powerpoint_verified": false,
+    "passed": true,
+    "presentation_sha256": "a7cf8313a47d592523186ccf16c00cce6b2ccbd91bb7c1c1676044f6ec51ac9d",
+    "schema_version": "presentation-native-chart-titles.v1",
+    "slide_count": 7,
+    "source_text_emitted": false,
+    "unresolved_linked_title_count": 0
+  },
+  "sourceDerivedPolicyFlags": [
+    "--expected-slide-size-emu",
+    "12192000,6858000",
+    "--validate-heading-fit",
+    "--cover-role",
+    "none",
+    "--expected-slide-count",
+    "7",
+    "--approved-font-family",
+    "Apple SD Gothic Neo",
+    "--approved-script-font",
+    "ea=Apple SD Gothic Neo"
+  ],
+  "nativeChartValidation": {
+    "detectedOwnerSlides": [],
+    "detectedChartCount": 0,
+    "targetApplication": "portable",
+    "sourceChartOwnersExplicitlyDeclared": true,
+    "validatorRan": false,
+    "passed": true
+  }
+}

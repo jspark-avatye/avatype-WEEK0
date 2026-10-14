@@ -1,0 +1,20 @@
+.report-page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+.report-card { margin: 36px auto; padding: clamp(20px, 5vw, 48px); border: 1px solid #dbe3e0; border-radius: 24px; background: #fff; }
+.report-eyebrow { font-size: 12px; letter-spacing: .14em; color: #56746c; margin-top: 32px; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.report-actions p { flex-basis: 100%; }
+.report-summary, .report-criterion p { line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 22px; background: #eef7f3; border-radius: 14px; }
+.report-verdict strong { font-size: 28px; }
+.report-verdict span { padding: 5px 12px; border: 1px solid #b8cec5; border-radius: 20px; }
+.report-verdict--provisional, .report-verdict--unassessable { background: #fff5e8; }
+.report-criterion { margin-top: 32px; border-top: 1px solid #e1e9e5; padding-top: 20px; }
+.report-criterion h2 { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
+.report-criterion h2 span { color: #356759; font-size: 18px; }
+.report-insufficient { color: #805417; }
+.report-evidence { margin: 12px 0; padding: 16px; background: #f5f8f7; border-radius: 12px; }
+.report-evidence summary { cursor: pointer; font-weight: 600; }
+.evidence-audio audio { max-width: 100%; }
+.report-feedback { padding: 16px; border-left: 3px solid #649383; }
+.history-item { padding: 20px 0; border-top: 1px solid #e1e9e5; }
+.history-item h2 { font-size: 20px; }
