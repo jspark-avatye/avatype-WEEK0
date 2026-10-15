@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const workspaceDir = '/Users/parkjunseong/Documents/avatye/WEEK1';
+const workspaceDir = fileURLToPath(new URL('../../', import.meta.url));
 const buildDir = path.join(workspaceDir, 'tmp/presentation-build-20261013');
 const skillDir = '/Users/parkjunseong/.codex/plugins/cache/openai-primary-runtime/presentations/26.1011.11113/skills/presentations';
 const runtimeDir = '/Users/parkjunseong/.cache/codex-runtimes/codex-primary-runtime/dependencies';

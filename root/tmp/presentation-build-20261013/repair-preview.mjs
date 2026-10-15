@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import JSZip from 'jszip';
 
-const workspaceDir = '/Users/parkjunseong/Documents/avatye/WEEK1';
+const workspaceDir = fileURLToPath(new URL('../../', import.meta.url));
 const buildDir = path.join(workspaceDir, 'tmp/presentation-build-20261013');
 const sourcePath = path.join(workspaceDir, 'output/presentations/root-english-conversation-7slides.pptx');
 const candidatePath = path.join(buildDir, 'compatibility/checked-candidate.pptx');
